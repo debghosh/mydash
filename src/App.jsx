@@ -3,6 +3,7 @@ import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Cart
 import ClientQuestionnaire from './ClientQuestionnaire';
 import { CLIENT_PERSONAS } from './client-personas';
 import { generateRecommendations } from './recommendation-engine';
+import calculateProductionIncomeProjection from './production-income-calculator';
 
 
 const PortfolioStrategyDashboard = () => {
@@ -14,6 +15,8 @@ const PortfolioStrategyDashboard = () => {
   const [continueAfterRMD, setContinueAfterRMD] = useState(false);
   const [capitalGainsRate, setCapitalGainsRate] = useState(15);
   const [frontLoadConversions, setFrontLoadConversions] = useState(false);
+  const [stateTaxRate, setStateTaxRate] = useState(5); // State income tax rate
+  const [useConservativeEstimates, setUseConservativeEstimates] = useState(true); // 20% buffer for safety
   const [expectedGrowthRate, setExpectedGrowthRate] = useState(9); // 85% equities growth-focused = 9% realistic
   
   // Personas state
@@ -807,8 +810,40 @@ const PortfolioStrategyDashboard = () => {
                 <option value="20">20% (High Income)</option>
               </select>
             </div>
+            <div>
+              <label className="block text-sm text-slate-300 mb-2">State Income Tax Rate</label>
+              <input 
+                type="range"
+                min="0"
+                max="13"
+                step="0.5"
+                value={stateTaxRate}
+                onChange={(e) => setStateTaxRate(parseFloat(e.target.value))}
+                className="w-full"
+              />
+              <div className="text-center mt-1">
+                <span className="font-bold">{stateTaxRate.toFixed(1)}%</span>
+                <span className="text-xs text-slate-400 ml-2">
+                  {stateTaxRate === 0 && '(No state tax: FL, TX, NV, WA, etc.)'}
+                  {stateTaxRate > 0 && stateTaxRate <= 5 && '(Low-tax state)'}
+                  {stateTaxRate > 5 && stateTaxRate <= 8 && '(Medium-tax state)'}
+                  {stateTaxRate > 8 && '(High-tax state: CA, NY, NJ, etc.)'}
+                </span>
+              </div>
+            </div>
           </div>
           <div className="mt-4 space-y-2">
+            <label className="flex items-center text-sm text-slate-300">
+              <input 
+                type="checkbox"
+                checked={useConservativeEstimates}
+                onChange={(e) => setUseConservativeEstimates(e.target.checked)}
+                className="mr-2"
+              />
+              <span>
+                <strong className="text-green-400">Use Conservative Estimates (+20% buffer)?</strong> Recommended for real money decisions
+              </span>
+            </label>
             <label className="flex items-center text-sm text-slate-300">
               <input 
                 type="checkbox"
@@ -834,7 +869,7 @@ const PortfolioStrategyDashboard = () => {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto">
-          {['personas', 'overview', 'accounts', 'alpha', 'allocation', 'income', 'roth', 'rebalancing', 'etfs'].map(tab => (
+          {['personas', 'overview', 'accounts', 'alpha', 'allocation', 'income', 'tax-optimization', 'roth', 'rebalancing', 'etfs'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -844,7 +879,7 @@ const PortfolioStrategyDashboard = () => {
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === 'tax-optimization' ? 'Tax Optimization' : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
@@ -1441,7 +1476,11 @@ const PortfolioStrategyDashboard = () => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Object.keys(allocations).map(regime => (
-                  <div key={regime} className={`bg-slate-700 rounded-lg p-4 border-2 ${marketRegime === regime ? 'border-blue-500' : 'border-transparent'}`}>
+                  <div 
+                    key={regime} 
+                    className={`bg-slate-700 rounded-lg p-4 border-2 ${marketRegime === regime ? 'border-blue-500' : 'border-transparent'} cursor-pointer hover:border-blue-400 transition-all`}
+                    onClick={() => setMarketRegime(regime)}
+                  >
                     <h3 className="font-semibold mb-3 text-center capitalize">{regimeDefinitions[regime]?.name || regime}</h3>
                     <div className="space-y-2 text-sm">
                       {allocations[regime] && Object.entries(allocations[regime]).map(([name, value]) => (
@@ -1499,463 +1538,1192 @@ const PortfolioStrategyDashboard = () => {
             </div>
           )}
 
-          {activeTab === 'income' && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold mb-4">Complete Income & Tax Analysis</h2>
-              
-              {/* STEP 1: Income Sources */}
-              <div className="bg-gradient-to-r from-green-900/30 to-blue-900/30 rounded-lg p-6 border border-green-500/30">
-                <h3 className="text-xl font-semibold mb-4">STEP 1: Annual Income Sources (From Taxable Account)</h3>
-                <div className="space-y-3">
-                  {incomeProjection.incomeSources && Object.entries(incomeProjection.incomeSources).map(([etf, data]) => (
-                    <div key={etf} className="bg-slate-700/50 rounded p-3 flex justify-between items-center">
-                      <div className="flex-1">
-                        <div className="font-semibold">{etf}</div>
-                        <div className="text-xs text-slate-400">
-                          ${(data.amount / 1000000).toFixed(2)}M × {data.yield}% yield
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-green-400">${(data.annualIncome / 1000).toFixed(1)}K</div>
-                        <div className="text-xs text-slate-400">{data.taxStatus}</div>
-                      </div>
-                    </div>
+
+
+{activeTab === 'income' && (
+  <div className="space-y-6">
+    <div className="flex justify-between items-center">
+      <h2 className="text-2xl font-bold">Complete Lifetime Wealth Projection (Age 60 → 90)</h2>
+      <div className="text-sm text-slate-400">Year-by-year account balances with Roth conversions & taxes</div>
+    </div>
+
+    {/* Comprehensive Year-by-Year Projection */}
+    {(() => {
+      // Calculate comprehensive year-by-year projection
+
+      
+ const lifetimeProjection = calculateProductionIncomeProjection({
+     currentAge: 60,
+     taxableAmount,
+     iraAmount,
+     conversionAmount,
+     frontLoadConversions,
+     expectedGrowthRate,
+     capitalGainsRate,
+     stateTaxRate, // Now actually used!
+     conservativeBuffer: useConservativeEstimates ? 1.2 : 1.0, // Now actually used!
+   });
+      
+      // Calculate summary statistics
+      const totalConversions = lifetimeProjection.reduce((sum, p) => sum + p.conversionAmount, 0);
+      const totalConversionTaxes = lifetimeProjection.reduce((sum, p) => sum + p.conversionTax, 0);
+      const totalCapGainsTaxes = lifetimeProjection.reduce((sum, p) => sum + p.capGainsTax, 0);
+      const totalLifetimeTaxes = lifetimeProjection.reduce((sum, p) => sum + p.totalTaxes, 0);
+      const finalPortfolio = lifetimeProjection[lifetimeProjection.length - 1].totalPortfolio;
+      const finalRothPct = (lifetimeProjection[lifetimeProjection.length - 1].rothIRABalance / finalPortfolio) * 100;
+      
+      return (
+        <>
+          {/* Executive Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-blue-900/40 to-blue-800/40 border border-blue-500/30 rounded-lg p-4">
+              <div className="text-xs text-slate-400 mb-1">Starting Portfolio</div>
+              <div className="text-2xl font-bold text-white">
+                ${((taxableAmount + iraAmount) / 1000000).toFixed(2)}M
+              </div>
+              <div className="text-xs text-slate-400 mt-1">Age 60</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-green-900/40 to-green-800/40 border border-green-500/30 rounded-lg p-4">
+              <div className="text-xs text-slate-400 mb-1">Ending Portfolio</div>
+              <div className="text-2xl font-bold text-green-400">
+                ${(finalPortfolio / 1000000).toFixed(2)}M
+              </div>
+              <div className="text-xs text-slate-400 mt-1">Age 90</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-900/40 to-purple-800/40 border border-purple-500/30 rounded-lg p-4">
+              <div className="text-xs text-slate-400 mb-1">Roth Conversions</div>
+              <div className="text-2xl font-bold text-purple-400">
+                ${(totalConversions / 1000000).toFixed(2)}M
+              </div>
+              <div className="text-xs text-slate-400 mt-1">{finalRothPct.toFixed(0)}% of portfolio</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-red-900/40 to-red-800/40 border border-red-500/30 rounded-lg p-4">
+              <div className="text-xs text-slate-400 mb-1">Lifetime Taxes</div>
+              <div className="text-2xl font-bold text-red-400">
+                ${(totalLifetimeTaxes / 1000000).toFixed(2)}M
+              </div>
+              <div className="text-xs text-slate-400 mt-1">All sources, ages 60-90</div>
+            </div>
+          </div>
+
+          {/* Detailed Year-by-Year Table */}
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <h3 className="text-xl font-semibold mb-4">Complete Year-by-Year Projection (Age 60 → 90)</h3>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-700 sticky top-0">
+                  <tr className="text-slate-300">
+                    <th className="text-left py-3 px-2 border-r border-slate-600">Age</th>
+                    <th className="text-right py-3 px-2 border-r border-slate-600">Dividends</th>
+                    <th className="text-right py-3 px-2 border-r border-slate-600">RMD</th>
+                    <th className="text-right py-3 px-2 border-r border-slate-600">Soc Sec</th>
+                    <th className="text-right py-3 px-2 bg-purple-900/30 border-r border-slate-600">Roth Conv</th>
+                    <th className="text-right py-3 px-2 bg-purple-900/30 border-r border-slate-600">Conv Tax</th>
+                    <th className="text-right py-3 px-2 bg-red-900/30 border-r border-slate-600">Stocks Sold</th>
+                    <th className="text-right py-3 px-2 bg-red-900/30 border-r border-slate-600">Cap Gains</th>
+                    <th className="text-right py-3 px-2 bg-red-900/30 border-r border-slate-600">Tax-on-Tax</th>
+                    <th className="text-right py-3 px-2 border-r border-slate-600">Total Taxes</th>
+                    <th className="text-right py-3 px-2 bg-blue-900/30 border-r border-slate-600">Taxable</th>
+                    <th className="text-right py-3 px-2 bg-amber-900/30 border-r border-slate-600">Trad IRA</th>
+                    <th className="text-right py-3 px-2 bg-green-900/30 border-r border-slate-600">Roth IRA</th>
+                    <th className="text-right py-3 px-2 font-bold">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="text-white">
+                  {lifetimeProjection.map((proj) => (
+                    <tr 
+                      key={proj.age} 
+                      className={`border-b border-slate-700 hover:bg-slate-700/30 ${
+                        proj.age === 73 ? 'bg-purple-900/20 font-semibold' : ''
+                      } ${proj.age === 90 ? 'bg-green-900/20 font-semibold' : ''}`}
+                    >
+                      <td className="py-2 px-2 font-semibold border-r border-slate-600">{proj.age}</td>
+                      <td className="text-right py-2 px-2 border-r border-slate-600">${(proj.dividends / 1000).toFixed(0)}K</td>
+                      <td className="text-right py-2 px-2 text-purple-400 border-r border-slate-600">${(proj.rmd / 1000).toFixed(0)}K</td>
+                      <td className="text-right py-2 px-2 text-blue-400 border-r border-slate-600">${(proj.socialSecurity / 1000).toFixed(0)}K</td>
+                      <td className="text-right py-2 px-2 bg-purple-900/20 text-purple-300 border-r border-slate-600">${(proj.conversionAmount / 1000).toFixed(0)}K</td>
+                      <td className="text-right py-2 px-2 bg-purple-900/20 text-red-400 border-r border-slate-600">${(proj.conversionTax / 1000).toFixed(0)}K</td>
+                      <td className="text-right py-2 px-2 bg-red-900/20 text-orange-400 border-r border-slate-600">${(proj.stocksSold / 1000).toFixed(0)}K</td>
+                      <td className="text-right py-2 px-2 bg-red-900/20 text-orange-300 border-r border-slate-600">${(proj.capitalGains / 1000).toFixed(0)}K</td>
+                      <td className="text-right py-2 px-2 bg-red-900/20 text-red-400 border-r border-slate-600">${(proj.capGainsTax / 1000).toFixed(0)}K</td>
+                      <td className="text-right py-2 px-2 text-red-400 font-semibold border-r border-slate-600">${(proj.totalTaxes / 1000).toFixed(0)}K</td>
+                      <td className="text-right py-2 px-2 bg-blue-900/20 text-blue-300 border-r border-slate-600">${(proj.taxableBalance / 1000000).toFixed(2)}M</td>
+                      <td className="text-right py-2 px-2 bg-amber-900/20 text-amber-300 border-r border-slate-600">${(proj.tradIRABalance / 1000000).toFixed(2)}M</td>
+                      <td className="text-right py-2 px-2 bg-green-900/20 text-green-400 border-r border-slate-600">${(proj.rothIRABalance / 1000000).toFixed(2)}M</td>
+                      <td className="text-right py-2 px-2 font-bold text-lg">${(proj.totalPortfolio / 1000000).toFixed(2)}M</td>
+                    </tr>
                   ))}
-                  <div className="bg-green-900/30 rounded p-4 mt-2">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-lg">TOTAL DIVIDEND INCOME</span>
-                      <span className="text-2xl font-bold text-green-400">${(incomeProjection.totalAnnualDividends / 1000).toFixed(0)}K</span>
-                    </div>
-                    <div className="text-xs text-slate-300 mt-1">
-                      Qualified: ${(incomeProjection.qualifiedDividends / 1000).toFixed(0)}K | 
-                      Ordinary: ${(incomeProjection.ordinaryIncome / 1000).toFixed(0)}K
-                    </div>
-                  </div>
-                </div>
-              </div>
+                </tbody>
+                <tfoot className="bg-slate-700 font-bold">
+                  <tr className="text-white">
+                    <td className="py-3 px-2 border-r border-slate-600">TOTALS</td>
+                    <td className="text-right py-3 px-2 border-r border-slate-600" colSpan="3">—</td>
+                    <td className="text-right py-3 px-2 bg-purple-900/30 text-purple-300 border-r border-slate-600">
+                      ${(totalConversions / 1000000).toFixed(2)}M
+                    </td>
+                    <td className="text-right py-3 px-2 bg-purple-900/30 text-red-400 border-r border-slate-600">
+                      ${(totalConversionTaxes / 1000).toFixed(0)}K
+                    </td>
+                    <td className="text-right py-3 px-2 bg-red-900/30 border-r border-slate-600" colSpan="2">—</td>
+                    <td className="text-right py-3 px-2 bg-red-900/30 text-red-400 border-r border-slate-600">
+                      ${(totalCapGainsTaxes / 1000).toFixed(0)}K
+                    </td>
+                    <td className="text-right py-3 px-2 text-red-400 border-r border-slate-600">
+                      ${(totalLifetimeTaxes / 1000000).toFixed(2)}M
+                    </td>
+                    <td className="text-right py-3 px-2 border-r border-slate-600" colSpan="3">—</td>
+                    <td className="text-right py-3 px-2 text-green-400 text-xl">
+                      ${(finalPortfolio / 1000000).toFixed(2)}M
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
 
-              {/* STEP 2: Uses of Cash */}
-              <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 rounded-lg p-6 border border-blue-500/30">
-                <h3 className="text-xl font-semibold mb-4">STEP 2: Where the Money Goes</h3>
-                <div className="space-y-3">
-                  <div className="bg-slate-700/50 rounded p-3 flex justify-between items-center">
-                    <span className="font-semibold">Living Expenses</span>
-                    <span className="text-lg font-bold text-blue-400">${(incomeProjection.annualLivingExpenses / 1000).toFixed(0)}K</span>
-                  </div>
-                  <div className="bg-slate-700/50 rounded p-3 flex justify-between items-center">
-                    <span className="font-semibold">Roth Conversion Tax (Year 1)</span>
-                    <span className="text-lg font-bold text-red-400">${(incomeProjection.rothConversionTax / 1000).toFixed(0)}K</span>
-                  </div>
-                  <div className="bg-blue-900/30 rounded p-4">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-lg">TOTAL CASH NEEDED</span>
-                      <span className="text-2xl font-bold text-blue-400">${(incomeProjection.totalCashNeeded / 1000).toFixed(0)}K</span>
-                    </div>
-                  </div>
+          {/* Key Insights */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-gradient-to-br from-amber-900/40 to-amber-800/40 border border-amber-500/30 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-amber-300 mb-3">💡 Tax-on-Tax Impact</h3>
+              <div className="space-y-2 text-sm text-slate-300">
+                <div className="flex justify-between">
+                  <span>Total stocks sold (ages 60-90):</span>
+                  <span className="font-bold text-orange-400">
+                    ${(lifetimeProjection.reduce((sum, p) => sum + p.stocksSold, 0) / 1000000).toFixed(2)}M
+                  </span>
                 </div>
-              </div>
-
-              {/* STEP 3: Tax Analysis */}
-              <div className="bg-gradient-to-r from-red-900/30 to-orange-900/30 rounded-lg p-6 border border-red-500/30">
-                <h3 className="text-xl font-semibold mb-4">STEP 3: Tax Calculation</h3>
-                <div className="space-y-3">
-                  <div className="bg-slate-700/50 rounded p-3">
-                    <div className="font-semibold mb-2">Taxes on Dividends Received</div>
-                    <div className="text-sm text-slate-300 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Qualified dividends @ 15%:</span>
-                        <span className="text-red-400">${((incomeProjection.qualifiedDividends * 0.15) / 1000).toFixed(1)}K</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Ordinary income @ 24%:</span>
-                        <span className="text-red-400">${((incomeProjection.ordinaryIncome * 0.24) / 1000).toFixed(1)}K</span>
-                      </div>
-                      <div className="flex justify-between font-semibold border-t border-slate-600 pt-1 mt-1">
-                        <span>Dividend tax total:</span>
-                        <span className="text-red-400">${(incomeProjection.dividendTax / 1000).toFixed(1)}K</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-slate-700/50 rounded p-3">
-                    <div className="font-semibold mb-2">After-Tax Dividends Available</div>
-                    <div className="text-sm text-slate-300">
-                      <div className="flex justify-between">
-                        <span>Dividends received:</span>
-                        <span>${(incomeProjection.totalAnnualDividends / 1000).toFixed(0)}K</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Less: dividend taxes:</span>
-                        <span className="text-red-400">-${(incomeProjection.dividendTax / 1000).toFixed(1)}K</span>
-                      </div>
-                      <div className="flex justify-between font-semibold border-t border-slate-600 pt-1 mt-1">
-                        <span>After-tax cash available:</span>
-                        <span className="text-green-400">${(incomeProjection.afterTaxDividends / 1000).toFixed(0)}K</span>
-                      </div>
-                    </div>
-                  </div>
+                <div className="flex justify-between">
+                  <span>Capital gains realized:</span>
+                  <span className="font-bold text-orange-300">
+                    ${(lifetimeProjection.reduce((sum, p) => sum + p.capitalGains, 0) / 1000000).toFixed(2)}M
+                  </span>
                 </div>
-              </div>
-
-              {/* STEP 4: The Gap */}
-              <div className="bg-gradient-to-r from-yellow-900/30 to-red-900/30 rounded-lg p-6 border border-yellow-500/30">
-                <h3 className="text-xl font-semibold mb-4">STEP 4: Funding the Shortfall (Critical!)</h3>
-                <div className="space-y-3">
-                  <div className="bg-slate-700/50 rounded p-3">
-                    <div className="font-semibold mb-2">The Math</div>
-                    <div className="text-sm text-slate-300 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Total cash needed:</span>
-                        <span>${(incomeProjection.totalCashNeeded / 1000).toFixed(0)}K</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>After-tax dividends available:</span>
-                        <span className="text-green-400">-${(incomeProjection.afterTaxDividends / 1000).toFixed(0)}K</span>
-                      </div>
-                      <div className="flex justify-between font-semibold border-t border-slate-600 pt-1 mt-1">
-                        <span>SHORTFALL (must sell stocks):</span>
-                        <span className="text-yellow-400">${(incomeProjection.shortfall / 1000).toFixed(0)}K</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-yellow-900/30 border border-yellow-600/50 rounded p-3">
-                    <div className="font-semibold mb-2 text-yellow-400">⚠️ TAXES ON TAXES (The Hidden Cost)</div>
-                    <div className="text-sm text-slate-300 space-y-1">
-                      <div>To get ${(incomeProjection.shortfall / 1000).toFixed(0)}K, you must SELL stocks in your taxable account</div>
-                      <div className="flex justify-between mt-2">
-                        <span>Assumed cost basis:</span>
-                        <span>50% (half is gains)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Capital gains realized:</span>
-                        <span>${(incomeProjection.capitalGainsFromSales / 1000).toFixed(0)}K</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Capital gains tax @ {capitalGainsRate}%:</span>
-                        <span className="text-red-400">${(incomeProjection.capitalGainsTax / 1000).toFixed(1)}K</span>
-                      </div>
-                      <div className="text-xs text-yellow-300 mt-2 italic">
-                        This is "taxes on taxes" - you're paying capital gains tax on the stocks you sell to pay your other taxes!
-                      </div>
-                    </div>
-                  </div>
+                <div className="flex justify-between border-t border-amber-600/30 pt-2">
+                  <span>Total cap gains tax (tax-on-tax):</span>
+                  <span className="font-bold text-red-400">
+                    ${(totalCapGainsTaxes / 1000).toFixed(0)}K
+                  </span>
                 </div>
+                <p className="text-xs italic text-amber-200 mt-3">
+                  This is the "hidden tax" - capital gains triggered when selling stocks to pay Roth conversion taxes and living expenses.
+                </p>
               </div>
+            </div>
 
-              {/* STEP 5: Total Tax Burden */}
-              <div className="bg-gradient-to-r from-red-900/40 to-pink-900/40 rounded-lg p-6 border-2 border-red-500/50">
-                <h3 className="text-2xl font-semibold mb-4">STEP 5: Your Complete Annual Tax Bill</h3>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-slate-800/50 rounded p-4">
-                      <div className="text-sm text-slate-400 mb-1">Dividend Taxes</div>
-                      <div className="text-xl font-bold text-red-400">${(incomeProjection.dividendTax / 1000).toFixed(1)}K</div>
-                    </div>
-                    <div className="bg-slate-800/50 rounded p-4">
-                      <div className="text-sm text-slate-400 mb-1">Capital Gains Tax</div>
-                      <div className="text-xl font-bold text-red-400">${(incomeProjection.capitalGainsTax / 1000).toFixed(1)}K</div>
-                    </div>
-                    <div className="bg-slate-800/50 rounded p-4">
-                      <div className="text-sm text-slate-400 mb-1">Roth Conversion</div>
-                      <div className="text-xl font-bold text-red-400">${(incomeProjection.rothConversionTax / 1000).toFixed(0)}K</div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-red-900/40 rounded p-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xl font-semibold">TOTAL ANNUAL TAXES (Year 1)</span>
-                      <span className="text-3xl font-bold text-red-400">${(incomeProjection.totalAnnualTaxes / 1000).toFixed(0)}K</span>
-                    </div>
-                    <div className="text-sm text-slate-300 mt-2">
-                      This is {((incomeProjection.totalAnnualTaxes / incomeProjection.totalAnnualDividends) * 100).toFixed(1)}% of your total dividend income
-                    </div>
-                  </div>
+            <div className="bg-gradient-to-br from-green-900/40 to-green-800/40 border border-green-500/30 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-green-300 mb-3">🎯 Roth Conversion Success</h3>
+              <div className="space-y-2 text-sm text-slate-300">
+                <div className="flex justify-between">
+                  <span>Years converting:</span>
+                  <span className="font-bold text-white">
+                    {lifetimeProjection.filter(p => p.conversionAmount > 0).length} years
+                  </span>
                 </div>
+                <div className="flex justify-between">
+                  <span>Total converted to Roth:</span>
+                  <span className="font-bold text-purple-400">
+                    ${(totalConversions / 1000000).toFixed(2)}M
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Roth at age 90:</span>
+                  <span className="font-bold text-green-400">
+                    ${(lifetimeProjection[lifetimeProjection.length - 1].rothIRABalance / 1000000).toFixed(2)}M
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-green-600/30 pt-2">
+                  <span>% of portfolio tax-free:</span>
+                  <span className="font-bold text-green-400">{finalRothPct.toFixed(0)}%</span>
+                </div>
+                <p className="text-xs italic text-green-200 mt-3">
+                  Roth grows tax-free and passes to heirs 100% tax-free. Traditional IRA would be taxed at 24-37%.
+                </p>
               </div>
+            </div>
+          </div>
+        </>
+      );
+    })()}
+  </div>
+)}
 
-              {/* Summary */}
-              <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 rounded-lg p-6 border border-blue-500/30">
-                <h3 className="text-xl font-semibold mb-4">The Bottom Line</h3>
-                <div className="space-y-2 text-sm text-slate-300">
+
+{activeTab === 'tax-optimization' && (
+  <div className="space-y-6">
+    <div className="flex justify-between items-center">
+      <h2 className="text-3xl font-bold">Tax Optimization Strategies</h2>
+      <div className="text-sm text-slate-400">Comprehensive guide to minimize lifetime taxes</div>
+    </div>
+
+    {/* Tax Savings Summary */}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="bg-gradient-to-br from-green-900/40 to-green-800/40 border border-green-500/30 rounded-lg p-4">
+        <div className="text-xs text-slate-400 mb-1">Potential QCD Savings</div>
+        <div className="text-2xl font-bold text-green-400">
+          ${(() => {
+            const currentAge = 60;
+            const yearsEligible = Math.max(0, 90 - Math.max(currentAge, 70.5));
+            const rmd73 = iraAmount / 26.5;
+            const avgQCD = Math.min(rmd73, 105000);
+            return ((avgQCD * 0.24 * yearsEligible) / 1000).toFixed(0);
+          })()}K
+        </div>
+        <div className="text-xs text-slate-400 mt-1">Age 70.5-90 (if charitable)</div>
+      </div>
+
+      <div className="bg-gradient-to-br from-blue-900/40 to-blue-800/40 border border-blue-500/30 rounded-lg p-4">
+        <div className="text-xs text-slate-400 mb-1">Asset Location Benefit</div>
+        <div className="text-2xl font-bold text-blue-400">
+          +0.8%
+        </div>
+        <div className="text-xs text-slate-400 mt-1">Annual alpha from tax efficiency</div>
+      </div>
+
+      <div className="bg-gradient-to-br from-purple-900/40 to-purple-800/40 border border-purple-500/30 rounded-lg p-4">
+        <div className="text-xs text-slate-400 mb-1">Tax-Loss Harvesting</div>
+        <div className="text-2xl font-bold text-purple-400">
+          $3K-$100K
+        </div>
+        <div className="text-xs text-slate-400 mt-1">Annual deduction potential</div>
+      </div>
+
+      <div className="bg-gradient-to-br from-amber-900/40 to-amber-800/40 border border-amber-500/30 rounded-lg p-4">
+        <div className="text-xs text-slate-400 mb-1">IRMAA Threshold Risk</div>
+        <div className="text-2xl font-bold text-amber-400">
+          ${(() => {
+            const rmd73 = iraAmount / 26.5;
+            const divs = taxableAmount * 0.025;
+            const totalIncome = rmd73 + divs + 55000;
+            return totalIncome > 206000 ? '8K/yr' : 'Safe';
+          })()}
+        </div>
+        <div className="text-xs text-slate-400 mt-1">Medicare surcharge at age 65+</div>
+      </div>
+    </div>
+
+    {/* Current Tax Situation */}
+    <div className="bg-gradient-to-br from-slate-800 to-slate-700 border border-slate-600 rounded-lg p-6">
+      <h3 className="text-xl font-semibold mb-4 flex items-center">
+        <span className="text-2xl mr-2">📊</span>
+        Your Current Tax Situation (Age 73 Projection)
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div>
+          <h4 className="font-semibold text-blue-300 mb-2">Income Sources</h4>
+          <div className="space-y-1 text-sm">
+            {(() => {
+              const divs = taxableAmount * 0.025;
+              const rmd = iraAmount / 26.5;
+              const ss = 55000;
+              return (
+                <>
                   <div className="flex justify-between">
-                    <span>Total dividend income received:</span>
-                    <span className="font-bold text-green-400">${(incomeProjection.totalAnnualDividends / 1000).toFixed(0)}K</span>
+                    <span className="text-slate-400">Dividends:</span>
+                    <span className="text-white">${(divs / 1000).toFixed(0)}K</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Total taxes paid (all sources):</span>
-                    <span className="font-bold text-red-400">-${(incomeProjection.totalAnnualTaxes / 1000).toFixed(0)}K</span>
+                    <span className="text-slate-400">RMDs:</span>
+                    <span className="text-white">${(rmd / 1000).toFixed(0)}K</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Living expenses:</span>
-                    <span className="font-bold">-${(incomeProjection.annualLivingExpenses / 1000).toFixed(0)}K</span>
+                    <span className="text-slate-400">Social Security:</span>
+                    <span className="text-white">${(ss / 1000).toFixed(0)}K</span>
                   </div>
-                  <div className="flex justify-between font-bold text-lg border-t border-slate-600 pt-2 mt-2">
-                    <span>Net portfolio impact:</span>
-                    <span className={incomeProjection.netAfterAllCosts < 0 ? 'text-red-400' : 'text-green-400'}>
-                      ${(incomeProjection.netAfterAllCosts / 1000).toFixed(0)}K
+                  <div className="flex justify-between border-t border-slate-600 pt-1 mt-1 font-bold">
+                    <span className="text-slate-300">Total AGI:</span>
+                    <span className="text-green-400">${((divs + rmd + ss * 0.85) / 1000).toFixed(0)}K</span>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+        
+        <div>
+          <h4 className="font-semibold text-amber-300 mb-2">Tax Bracket</h4>
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Current bracket:</span>
+              <span className="text-white">24%</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">LTCG rate:</span>
+              <span className="text-white">15%</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">State tax:</span>
+              <span className="text-white">~5%</span>
+            </div>
+            <div className="flex justify-between border-t border-slate-600 pt-1 mt-1 font-bold">
+              <span className="text-slate-300">Effective rate:</span>
+              <span className="text-amber-400">~19%</span>
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <h4 className="font-semibold text-red-300 mb-2">IRMAA Risk</h4>
+          <div className="space-y-1 text-sm">
+            {(() => {
+              const agi = (taxableAmount * 0.025) + (iraAmount / 26.5) + (55000 * 0.85);
+              const threshold1 = 206000;
+              const threshold2 = 258000;
+              const threshold3 = 322000;
+              const threshold4 = 386000;
+              const surcharge = agi > threshold4 ? 419 : agi > threshold3 ? 335 : agi > threshold2 ? 251 : agi > threshold1 ? 167 : 0;
+              
+              return (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Projected AGI:</span>
+                    <span className="text-white">${(agi / 1000).toFixed(0)}K</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Safe threshold:</span>
+                    <span className="text-white">$206K</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Monthly surcharge:</span>
+                    <span className={surcharge > 0 ? 'text-red-400' : 'text-green-400'}>
+                      ${surcharge > 0 ? surcharge : 0}/mo
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400 mt-2 italic">
-                    {incomeProjection.netAfterAllCosts < 0 
-                      ? '⚠️ Portfolio will decline by this amount annually. Plan to reduce Roth conversions or living expenses in later years.'
-                      : '✓ Portfolio generates enough income to cover all costs and still grow!'}
+                  <div className="flex justify-between border-t border-slate-600 pt-1 mt-1 font-bold">
+                    <span className="text-slate-300">Annual IRMAA:</span>
+                    <span className={surcharge > 0 ? 'text-red-400 font-bold' : 'text-green-400'}>
+                      ${surcharge > 0 ? ((surcharge * 12 * 2) / 1000).toFixed(1) + 'K' : 'None'}
+                    </span>
                   </div>
-                </div>
-              </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
+    </div>
 
-              <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-lg p-4">
-                <h4 className="font-semibold text-yellow-400 mb-2">💡 Key Insights</h4>
-                <ul className="text-sm text-slate-300 space-y-1">
-                  <li>• Dividends alone cover {((incomeProjection.afterTaxDividends / incomeProjection.annualLivingExpenses) * 100).toFixed(0)}% of living expenses after taxes</li>
-                  <li>• Roth conversion taxes are the biggest expense in early years (but save ${((rothTimeline[rothTimeline.length-1]?.cumulativeTax || 700000) / 1000).toFixed(0)}K+ long-term)</li>
-                  <li>• The "tax on tax" effect adds ${(incomeProjection.capitalGainsTax / 1000).toFixed(1)}K annually - this is why Texas residency (0% state tax) is valuable</li>
-                  <li>• After Roth conversions complete (age 73), your tax burden drops by ~${(incomeProjection.rothConversionTax / 1000).toFixed(0)}K/year</li>
+    {/* 8 CHARITABLE STRATEGIES */}
+    <div className="bg-gradient-to-br from-indigo-900/40 to-indigo-800/40 border border-indigo-500/30 rounded-lg p-6">
+      <h3 className="text-2xl font-semibold mb-4 flex items-center">
+        <span className="text-3xl mr-2">💝</span>
+        8 Charitable Contribution Strategies
+      </h3>
+      <p className="text-slate-300 text-sm mb-6">
+        These strategies can offset RMDs, reduce IRMAA surcharges, and provide significant tax savings while supporting causes you care about.
+      </p>
+      
+      <div className="space-y-6">
+        {/* Strategy 1: QCDs */}
+        <div className="bg-slate-800/70 rounded-lg p-5 border-l-4 border-indigo-500">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <h4 className="text-xl font-bold text-indigo-300">1. Qualified Charitable Distributions (QCDs)</h4>
+              <div className="text-xs text-slate-400 mt-1">
+                Age: 70.5+ | Limit: $105,000/year | Tax Bracket: All
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-green-400 font-semibold">Potential Savings</div>
+              <div className="text-2xl font-bold text-green-400">
+                ${(() => {
+                  const rmd = iraAmount / 26.5;
+                  const qcd = Math.min(rmd, 105000);
+                  return ((qcd * 0.24) / 1000).toFixed(1);
+                })()}K/year
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            <div className="bg-indigo-900/30 rounded p-3">
+              <div className="font-semibold text-indigo-200 mb-2">💡 How It Works:</div>
+              <p className="text-sm text-slate-300">
+                Donate directly from your IRA to a qualified charity. The distribution counts toward your RMD but is NOT included in your taxable income. This is the #1 strategy for anyone age 70.5+ who gives to charity.
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-green-900/20 rounded p-3">
+                <div className="font-semibold text-green-300 mb-1 text-sm">✓ Benefits:</div>
+                <ul className="text-xs text-slate-300 space-y-1">
+                  <li>• Satisfies RMD requirement</li>
+                  <li>• Reduces AGI (helps avoid IRMAA)</li>
+                  <li>• No need to itemize deductions</li>
+                  <li>• Simple process (IRA → Charity direct)</li>
+                  <li>• Can split among multiple charities</li>
                 </ul>
               </div>
+              
+              <div className="bg-amber-900/20 rounded p-3">
+                <div className="font-semibold text-amber-300 mb-1 text-sm">⚠️ Rules & Limits:</div>
+                <ul className="text-xs text-slate-300 space-y-1">
+                  <li>• Must be age 70.5 or older</li>
+                  <li>• $105,000 max per person per year</li>
+                  <li>• Must go directly to charity (not DAF)</li>
+                  <li>• Only from IRA (not 401k)</li>
+                  <li>• Charity must be 501(c)(3)</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="bg-blue-900/20 rounded p-3">
+              <div className="font-semibold text-blue-300 mb-2 text-sm">📝 Your Specific Example:</div>
+              <div className="text-sm text-slate-300 space-y-1">
+                <div className="flex justify-between">
+                  <span>Age 73 RMD:</span>
+                  <span className="font-bold">${(iraAmount / 26.5 / 1000).toFixed(0)}K</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Maximum QCD:</span>
+                  <span className="font-bold">$105K</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tax bracket:</span>
+                  <span className="font-bold">24%</span>
+                </div>
+                <div className="flex justify-between border-t border-blue-600/30 pt-1 mt-1">
+                  <span className="font-bold">Annual tax savings:</span>
+                  <span className="font-bold text-green-400">${(Math.min(iraAmount / 26.5, 105000) * 0.24 / 1000).toFixed(1)}K</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-bold">Lifetime savings (age 70.5-90):</span>
+                  <span className="font-bold text-green-400">${(Math.min(iraAmount / 26.5, 105000) * 0.24 * 19.5 / 1000).toFixed(0)}K</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-purple-900/20 rounded p-3">
+              <div className="font-semibold text-purple-300 mb-2 text-sm">🎯 Pro Tips:</div>
+              <ul className="text-xs text-slate-300 space-y-1">
+                <li>• <strong>Start at 70.5, not 73:</strong> You can do QCDs 2.5 years before RMDs begin!</li>
+                <li>• <strong>Use instead of itemizing:</strong> If you take standard deduction, QCD gives you a "free" charitable deduction</li>
+                <li>• <strong>Time it right:</strong> Do QCD before year-end RMD to avoid excess withdrawal</li>
+                <li>• <strong>Keep records:</strong> Get written acknowledgment from charity (IRS requirement)</li>
+                <li>• <strong>Direct transfer:</strong> Have IRA custodian send check directly to charity (never touch the money yourself)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
 
-              {/* LIFETIME PROJECTION */}
-              <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg p-6 border-2 border-purple-500/50">
-                <h3 className="text-2xl font-semibold mb-4">📅 Lifetime Income & Tax Projection (Ages 60-90)</h3>
-                
-                {/* Growth Rate Assumption Control */}
-                <div className="bg-blue-900/20 border border-blue-600/30 rounded p-4 mb-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-blue-400 mb-2">
-                        📈 Expected Annual Return (%)
-                      </label>
-                      <select
-                        value={expectedGrowthRate}
-                        onChange={(e) => setExpectedGrowthRate(Number(e.target.value))}
-                        className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-white"
-                      >
-                        <option value={6}>6% (Too Conservative - Below Historical)</option>
-                        <option value={7}>7% (Conservative - Real Returns)</option>
-                        <option value={8}>8% (Moderate)</option>
-                        <option value={9}>9% (Realistic ⭐ - Recommended for 85% Equities)</option>
-                        <option value={10}>10% (Aggressive - Historical S&P 500)</option>
-                        <option value={11}>11% (Very Aggressive)</option>
-                      </select>
-                    </div>
-                    <div className="text-xs text-slate-300 self-center">
-                      <strong className="text-yellow-400">Why 9% is Realistic:</strong><br/>
-                      • Historical S&P 500: 10.5% nominal (1928-2024)<br/>
-                      • Your IRA: 85-90% growth-focused equities<br/>
-                      • Factor tilts: Quality, Growth, Momentum add +1-2%<br/>
-                      • 9% is <em>conservative</em> for your growth allocation<br/>
-                      <div className="mt-2 text-yellow-400">
-                        <strong>⚠️ 6% was WAY too low!</strong> Updated to 9% default.
-                      </div>
-                      <strong>Brokerage:</strong> {expectedGrowthRate}% - 2.5% (dividends) = {(expectedGrowthRate - 2.5).toFixed(1)}% appreciation<br/>
-                      <strong>IRA/Roth:</strong> {expectedGrowthRate}% total (reinvests everything)
-                    </div>
+        {/* Strategy 2: DAF */}
+        <div className="bg-slate-800/70 rounded-lg p-5 border-l-4 border-blue-500">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <h4 className="text-xl font-bold text-blue-300">2. Donor-Advised Fund (DAF)</h4>
+              <div className="text-xs text-slate-400 mt-1">
+                Age: Any | Limit: 60% of AGI | Tax Bracket: High earners
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-green-400 font-semibold">One-Time Benefit</div>
+              <div className="text-2xl font-bold text-green-400">$36K+</div>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            <div className="bg-blue-900/30 rounded p-3">
+              <div className="font-semibold text-blue-200 mb-2">💡 How It Works:</div>
+              <p className="text-sm text-slate-300">
+                Contribute appreciated stock to a DAF in a high-income year. Get immediate tax deduction at fair market value, avoid capital gains tax, and the DAF grows tax-free. Distribute to charities over time. Perfect for "bunching" deductions to exceed standard deduction threshold.
+              </p>
+            </div>
+            
+            <div className="bg-blue-900/20 rounded p-3">
+              <div className="font-semibold text-blue-300 mb-2 text-sm">📊 Example: $100K Stock Contribution</div>
+              <div className="text-sm text-slate-300 space-y-1">
+                <div className="flex justify-between">
+                  <span>Stock value (FMV):</span>
+                  <span>$100,000</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Cost basis:</span>
+                  <span>$20,000</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Capital gain avoided:</span>
+                  <span className="text-green-400">$80,000</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Cap gains tax saved (15%):</span>
+                  <span className="text-green-400 font-bold">$12,000</span>
+                </div>
+                <div className="flex justify-between border-t border-blue-600/30 pt-1 mt-1">
+                  <span>Income tax deduction:</span>
+                  <span className="text-green-400">$100,000</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tax savings (24% bracket):</span>
+                  <span className="text-green-400 font-bold">$24,000</span>
+                </div>
+                <div className="flex justify-between border-t border-blue-600/30 pt-1 mt-1 font-bold">
+                  <span>Total benefit:</span>
+                  <span className="text-green-400 text-lg">$36,000</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-green-900/20 rounded p-3">
+                <div className="font-semibold text-green-300 mb-1 text-sm">✓ Best For:</div>
+                <ul className="text-xs text-slate-300 space-y-1">
+                  <li>• High-income years (stock sale, bonus, conversion)</li>
+                  <li>• Highly appreciated stock (low basis)</li>
+                  <li>• Want to give $10K+ to charity over time</li>
+                  <li>• Exceed standard deduction when bunching</li>
+                </ul>
+              </div>
+              
+              <div className="bg-purple-900/20 rounded p-3">
+                <div className="font-semibold text-purple-300 mb-1 text-sm">🎯 Strategy:</div>
+                <ul className="text-xs text-slate-300 space-y-1">
+                  <li>• Front-load 2-3 years of giving into one year</li>
+                  <li>• Itemize that year (exceed standard deduction)</li>
+                  <li>• Take standard deduction other years</li>
+                  <li>• Distribute from DAF annually to charities</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Strategy 3: CRT */}
+        <div className="bg-slate-800/70 rounded-lg p-5 border-l-4 border-green-500">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <h4 className="text-xl font-bold text-green-300">3. Charitable Remainder Trust (CRT)</h4>
+              <div className="text-xs text-slate-400 mt-1">
+                Age: Any | Minimum: $500K+ | Best for: Highly appreciated assets
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-green-400 font-semibold">For Appreciated Assets</div>
+              <div className="text-lg font-bold text-green-400">$100K+/year</div>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            <div className="bg-green-900/30 rounded p-3">
+              <div className="font-semibold text-green-200 mb-2">💡 How It Works:</div>
+              <p className="text-sm text-slate-300">
+                Transfer highly appreciated assets (real estate, stock) to an irrevocable trust. Receive income for life (5-50% annually). Trust pays NO capital gains tax on sale. Remainder goes to charity at death. Great for converting illiquid/appreciated assets into income stream.
+              </p>
+            </div>
+            
+            <div className="bg-green-900/20 rounded p-3">
+              <div className="font-semibold text-green-300 mb-2 text-sm">📊 Example: $2M Real Estate</div>
+              <div className="text-sm text-slate-300 space-y-1">
+                <div>Transfer $2M property (basis $200K) to CRT:</div>
+                <div className="flex justify-between">
+                  <span>Capital gain avoided:</span>
+                  <span className="text-green-400 font-bold">$1.8M</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Cap gains tax saved (20% + 3.8% NII):</span>
+                  <span className="text-green-400 font-bold">$428K</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Immediate income tax deduction:</span>
+                  <span className="text-green-400 font-bold">~$600K</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Annual income (5% payout):</span>
+                  <span className="text-green-400 font-bold">$100K/year for life</span>
+                </div>
+                <div className="text-xs text-slate-400 mt-2">
+                  Trust grows tax-free, charity gets remainder at death
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-amber-900/20 rounded p-3">
+              <div className="font-semibold text-amber-300 mb-1 text-sm">⚠️ Considerations:</div>
+              <ul className="text-xs text-slate-300 space-y-1">
+                <li>• Irrevocable - can't get assets back</li>
+                <li>• Setup costs $3K-$10K (lawyer required)</li>
+                <li>• Annual admin fees ~1% of assets</li>
+                <li>• Best for $500K+ transfers</li>
+                <li>• Complex - need professional guidance</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Strategy 4: CLT */}
+        <div className="bg-slate-800/70 rounded-lg p-5 border-l-4 border-purple-500">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <h4 className="text-xl font-bold text-purple-300">4. Charitable Lead Trust (CLT)</h4>
+              <div className="text-xs text-slate-400 mt-1">
+                Age: Any | Minimum: $1M+ | Best for: Estate planning
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-green-400 font-semibold">Estate Tax Savings</div>
+              <div className="text-lg font-bold text-green-400">$4M+</div>
+            </div>
+          </div>
+          
+          <div className="bg-purple-900/30 rounded p-3">
+            <p className="text-sm text-slate-300 mb-2">
+              <strong>For wealthy estates ($10M+):</strong> Charity receives income stream for X years, then assets pass to heirs. All appreciation passes estate-tax-free. Essentially "freeze" asset value for estate tax purposes while it grows.
+            </p>
+            <div className="text-xs text-slate-400">
+              Example: $5M stock → charity gets $250K/year × 10 years → stock grows to $12M → heirs receive $12M estate-tax-free (saved ~$4.8M in estate tax at 40% rate)
+            </div>
+          </div>
+        </div>
+
+        {/* Strategy 5-8: Shorter descriptions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-slate-800/70 rounded-lg p-4 border-l-4 border-amber-500">
+            <h4 className="text-lg font-bold text-amber-300 mb-2">5. Real Estate Depreciation</h4>
+            <p className="text-sm text-slate-300 mb-2">
+              Rental property: $2M ÷ 27.5 years = $72K annual depreciation. Offsets passive income (or all income if "real estate professional"). Can offset {((72000 / (iraAmount / 26.5)) * 100).toFixed(0)}% of your RMD.
+            </p>
+            <div className="text-xs text-amber-200">
+              Savings: $17K/year (at 24% bracket)
+            </div>
+          </div>
+
+          <div className="bg-slate-800/70 rounded-lg p-4 border-l-4 border-orange-500">
+            <h4 className="text-lg font-bold text-orange-300 mb-2">6. Oil & Gas Partnerships</h4>
+            <p className="text-sm text-slate-300 mb-2">
+              Intangible drilling costs (IDC) are 70-85% deductible immediately. $200K investment → $140-170K deduction → $33-40K tax savings (24% bracket). HIGH RISK - sophisticated investors only.
+            </p>
+            <div className="text-xs text-orange-200">
+              For offsetting one-time high income events
+            </div>
+          </div>
+
+          <div className="bg-slate-800/70 rounded-lg p-4 border-l-4 border-cyan-500">
+            <h4 className="text-lg font-bold text-cyan-300 mb-2">7. Opportunity Zones</h4>
+            <p className="text-sm text-slate-300 mb-2">
+              Defer capital gains by investing in designated OZ. 10% basis step-up after 5 years, 15% after 7 years. Hold 10+ years = all OZ appreciation is TAX-FREE.
+            </p>
+            <div className="text-xs text-cyan-200">
+              Best for long-term capital gains ($500K+)
+            </div>
+          </div>
+
+          <div className="bg-slate-800/70 rounded-lg p-4 border-l-4 border-pink-500">
+            <h4 className="text-lg font-bold text-pink-300 mb-2">8. Charitable Bequests (Estate)</h4>
+            <p className="text-sm text-slate-300 mb-2">
+              Leave IRA to charity (they pay 0% tax), leave taxable to heirs (step-up basis). IRA to heirs = 60-70% total tax. $2M IRA → charity gets $2M, heirs avoid $1.2M+ tax hit.
+            </p>
+            <div className="text-xs text-pink-200">
+              40% estate tax deduction for charitable bequest
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* 4 REAL ESTATE STRATEGIES */}
+    <div className="bg-gradient-to-br from-amber-900/40 to-amber-800/40 border border-amber-500/30 rounded-lg p-6">
+      <h3 className="text-2xl font-semibold mb-4 flex items-center">
+        <span className="text-3xl mr-2">🏠</span>
+        4 Real Estate Tax Deduction Strategies
+      </h3>
+      <p className="text-slate-300 text-sm mb-6">
+        Real estate offers unique tax advantages that can offset RMDs, reduce ordinary income, and defer capital gains indefinitely.
+      </p>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Cost Segregation */}
+        <div className="bg-slate-800/70 rounded-lg p-5 border-l-4 border-amber-500">
+          <h4 className="text-xl font-bold text-amber-300 mb-3">1. Cost Segregation Study</h4>
+          
+          <div className="space-y-3">
+            <div className="bg-amber-900/30 rounded p-3">
+              <div className="font-semibold text-amber-200 mb-2">💡 How It Works:</div>
+              <p className="text-sm text-slate-300">
+                Engineering study reclassifies building components from 27.5-year (residential) or 39-year (commercial) to 5, 7, or 15-year property. Carpet, lighting, landscaping, parking lots all get shorter lives = front-loaded deductions.
+              </p>
+            </div>
+            
+            <div className="bg-amber-900/20 rounded p-3">
+              <div className="font-semibold text-amber-300 mb-2 text-sm">📊 Example:</div>
+              <div className="text-sm text-slate-300 space-y-1">
+                <div>$1M commercial property:</div>
+                <div className="flex justify-between">
+                  <span>Normal depreciation:</span>
+                  <span>$25K/year (39 years)</span>
+                </div>
+                <div className="flex justify-between border-t border-amber-600/30 pt-1">
+                  <span className="font-bold">With cost seg:</span>
+                  <span className="text-green-400 font-bold">$100K+ year 1</span>
+                </div>
+                <div className="text-xs text-slate-400 mt-2">
+                  40% reclassified to 5-year, 30% to 7-year, 30% remains 39-year
+                </div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-green-900/20 rounded p-2">
+                <div className="font-semibold text-green-300 mb-1">✓ Benefits:</div>
+                <ul className="text-slate-300 space-y-0.5">
+                  <li>• 3-4x deduction year 1</li>
+                  <li>• Offset high income year</li>
+                  <li>• Cash flow improvement</li>
+                </ul>
+              </div>
+              <div className="bg-amber-900/20 rounded p-2">
+                <div className="font-semibold text-amber-300 mb-1">💰 Cost:</div>
+                <ul className="text-slate-300 space-y-0.5">
+                  <li>• $5K-$15K study fee</li>
+                  <li>• Best for $500K+ properties</li>
+                  <li>• ROI typically 5-10x cost</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bonus Depreciation */}
+        <div className="bg-slate-800/70 rounded-lg p-5 border-l-4 border-yellow-500">
+          <h4 className="text-xl font-bold text-yellow-300 mb-3">2. Bonus Depreciation</h4>
+          
+          <div className="space-y-3">
+            <div className="bg-yellow-900/30 rounded p-3">
+              <div className="font-semibold text-yellow-200 mb-2">💡 How It Works:</div>
+              <p className="text-sm text-slate-300">
+                Qualified improvements (QIP) to interior of commercial buildings qualify for 100% immediate expensing. HVAC, roof, fire protection, security systems all eligible. Temporary bonus depreciation phases out (80% in 2023, 60% in 2024...).
+              </p>
+            </div>
+            
+            <div className="bg-yellow-900/20 rounded p-3">
+              <div className="font-semibold text-yellow-300 mb-2 text-sm">📊 Example:</div>
+              <div className="text-sm text-slate-300 space-y-1">
+                <div>$200K roof replacement:</div>
+                <div className="flex justify-between">
+                  <span>Normal (39 years):</span>
+                  <span>$5K/year</span>
+                </div>
+                <div className="flex justify-between border-t border-yellow-600/30 pt-1">
+                  <span className="font-bold">With bonus:</span>
+                  <span className="text-green-400 font-bold">$200K year 1</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tax savings (24%):</span>
+                  <span className="text-green-400 font-bold">$48K immediately</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-purple-900/20 rounded p-2 text-xs">
+              <div className="font-semibold text-purple-300 mb-1">🎯 Strategy:</div>
+              <div className="text-slate-300">
+                Time major improvements to years with high income (RMDs, stock sales, conversions) to offset tax burden. Combines well with cost segregation.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 1031 Exchange */}
+        <div className="bg-slate-800/70 rounded-lg p-5 border-l-4 border-green-500">
+          <h4 className="text-xl font-bold text-green-300 mb-3">3. Section 1031 Exchange</h4>
+          
+          <div className="space-y-3">
+            <div className="bg-green-900/30 rounded p-3">
+              <div className="font-semibold text-green-200 mb-2">💡 How It Works:</div>
+              <p className="text-sm text-slate-300">
+                Sell investment property, identify replacement within 45 days, close within 180 days. Pay ZERO capital gains tax. Can repeat indefinitely. Get step-up in basis at death = heirs avoid all deferred gains!
+              </p>
+            </div>
+            
+            <div className="bg-green-900/20 rounded p-3">
+              <div className="font-semibold text-green-300 mb-2 text-sm">📊 Example:</div>
+              <div className="text-sm text-slate-300 space-y-1">
+                <div>Sell: $2M property (basis $500K)</div>
+                <div className="flex justify-between">
+                  <span>Capital gain:</span>
+                  <span>$1.5M</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Depreciation recapture:</span>
+                  <span>$300K</span>
+                </div>
+                <div className="flex justify-between text-red-400">
+                  <span>Normal tax (without 1031):</span>
+                  <span className="line-through">$375K</span>
+                </div>
+                <div className="flex justify-between border-t border-green-600/30 pt-1">
+                  <span className="font-bold">With 1031 into $2.5M property:</span>
+                  <span className="text-green-400 font-bold">$0 tax</span>
+                </div>
+                <div className="text-xs text-green-200 mt-2">
+                  Buy $2.5M property, defer $375K tax, repeat every 5-10 years until death (step-up basis eliminates all deferred gains)
+                </div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-green-900/20 rounded p-2">
+                <div className="font-semibold text-green-300 mb-1">✓ Rules:</div>
+                <ul className="text-slate-300 space-y-0.5">
+                  <li>• Like-kind property only</li>
+                  <li>• Must use qualified intermediary</li>
+                  <li>• 45 days to identify</li>
+                  <li>• 180 days to close</li>
+                </ul>
+              </div>
+              <div className="bg-purple-900/20 rounded p-2">
+                <div className="font-semibold text-purple-300 mb-1">🎯 Pro Tip:</div>
+                <ul className="text-slate-300 space-y-0.5">
+                  <li>• Can "trade up" each time</li>
+                  <li>• Defer forever until death</li>
+                  <li>• Step-up = $0 tax to heirs</li>
+                  <li>• Best wealth strategy!</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Short-Term Rental Loophole */}
+        <div className="bg-slate-800/70 rounded-lg p-5 border-l-4 border-blue-500">
+          <h4 className="text-xl font-bold text-blue-300 mb-3">4. Short-Term Rental Loophole</h4>
+          
+          <div className="space-y-3">
+            <div className="bg-blue-900/30 rounded p-3">
+              <div className="font-semibold text-blue-200 mb-2">💡 How It Works:</div>
+              <p className="text-sm text-slate-300">
+                Rent property less than 7 days average stay = considered "active business" not "passive rental." Losses can offset W-2 income, RMDs, pensions if you materially participate (100+ hours, contemporaneous records). Airbnb/VRBO perfect for this.
+              </p>
+            </div>
+            
+            <div className="bg-blue-900/20 rounded p-3">
+              <div className="font-semibold text-blue-300 mb-2 text-sm">📊 Example:</div>
+              <div className="text-sm text-slate-300 space-y-1">
+                <div>$500K vacation rental (Airbnb):</div>
+                <div className="flex justify-between">
+                  <span>Gross rental income:</span>
+                  <span>$60K</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Operating expenses:</span>
+                  <span>($40K)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Depreciation ($500K ÷ 27.5):</span>
+                  <span>($18K)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Cost segregation bonus:</span>
+                  <span>($62K)</span>
+                </div>
+                <div className="flex justify-between border-t border-blue-600/30 pt-1 font-bold">
+                  <span>Net loss:</span>
+                  <span className="text-red-400">($60K)</span>
+                </div>
+                <div className="flex justify-between border-t border-blue-600/30 pt-1">
+                  <span>Can offset RMD:</span>
+                  <span className="text-green-400 font-bold">$60K</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tax savings (24%):</span>
+                  <span className="text-green-400 font-bold">$14K/year</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-amber-900/20 rounded p-2 text-xs">
+              <div className="font-semibold text-amber-300 mb-1">⚠️ Requirements:</div>
+              <div className="text-slate-300 space-y-0.5">
+                <div>• Average guest stay less than 7 days (measure annually)</div>
+                <div>• Provide "substantial services" (cleaning, breakfast, concierge)</div>
+                <div>• Material participation: 100+ hours OR more than anyone else</div>
+                <div>• Keep detailed time logs (IRS audits this!)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Additional Tax Strategies */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Tax-Loss Harvesting */}
+      <div className="bg-gradient-to-br from-red-900/40 to-red-800/40 border border-red-500/30 rounded-lg p-6">
+        <h3 className="text-xl font-semibold mb-4 flex items-center">
+          <span className="text-2xl mr-2">📉</span>
+          Tax-Loss Harvesting
+        </h3>
+        <div className="space-y-3">
+          <p className="text-sm text-slate-300">
+            Sell losing positions to offset gains. $3K annual deduction against ordinary income. Unlimited carryforward.
+          </p>
+          <div className="bg-red-900/20 rounded p-3 text-sm">
+            <div className="font-semibold text-red-300 mb-2">Strategy:</div>
+            <ul className="text-slate-300 space-y-1 text-xs">
+              <li>• Harvest losses in down markets</li>
+              <li>• Replace immediately with similar (not identical) fund</li>
+              <li>• Wait 31 days to avoid wash sale</li>
+              <li>• Use losses to offset Roth conversion taxes</li>
+              <li>• Or offset capital gains from rebalancing</li>
+            </ul>
+          </div>
+          <div className="text-xs text-slate-400">
+            Example: Harvest $100K loss → Offset $100K Roth conversion → Save $24K tax
+          </div>
+        </div>
+      </div>
+
+      {/* Asset Location */}
+      <div className="bg-gradient-to-br from-green-900/40 to-green-800/40 border border-green-500/30 rounded-lg p-6">
+        <h3 className="text-xl font-semibold mb-4 flex items-center">
+          <span className="text-2xl mr-2">🎯</span>
+          Asset Location Optimization
+        </h3>
+        <div className="space-y-3">
+          <p className="text-sm text-slate-300">
+            Put tax-inefficient assets in tax-advantaged accounts. Worth +0.8% annual alpha.
+          </p>
+          <div className="bg-green-900/20 rounded p-3 text-sm">
+            <div className="font-semibold text-green-300 mb-2">Optimal Placement:</div>
+            <div className="space-y-2 text-xs">
+              <div>
+                <div className="text-blue-300 font-semibold">Taxable account:</div>
+                <div className="text-slate-300">• Tax-efficient stock ETFs (VTI, VOO)</div>
+                <div className="text-slate-300">• Municipal bonds (if high bracket)</div>
+                <div className="text-slate-300">• Qualified dividends (low 15% tax)</div>
+              </div>
+              <div>
+                <div className="text-amber-300 font-semibold">Traditional IRA:</div>
+                <div className="text-slate-300">• Bonds (ordinary income)</div>
+                <div className="text-slate-300">• REITs (high distributions)</div>
+                <div className="text-slate-300">• High-turnover funds</div>
+              </div>
+              <div>
+                <div className="text-green-300 font-semibold">Roth IRA:</div>
+                <div className="text-slate-300">• Highest growth assets (QQQ, VUG)</div>
+                <div className="text-slate-300">• Small cap value</div>
+                <div className="text-slate-300">• Anything with high expected return</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* IRMAA Avoidance */}
+    <div className="bg-gradient-to-br from-orange-900/40 to-orange-800/40 border border-orange-500/30 rounded-lg p-6">
+      <h3 className="text-2xl font-semibold mb-4 flex items-center">
+        <span className="text-2xl mr-2">⚠️</span>
+        IRMAA Thresholds & Avoidance Strategies
+      </h3>
+      <p className="text-slate-300 text-sm mb-4">
+        Income-Related Monthly Adjustment Amount (IRMAA) increases Medicare Part B & D premiums based on income from 2 years prior. Small income increases can trigger large surcharges.
+      </p>
+      
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-orange-900/30">
+            <tr className="text-orange-200">
+              <th className="text-left py-2 px-3">Income (MAGI)</th>
+              <th className="text-right py-2 px-3">Part B</th>
+              <th className="text-right py-2 px-3">Part D</th>
+              <th className="text-right py-2 px-3">Total/Person</th>
+              <th className="text-right py-2 px-3">Couple</th>
+            </tr>
+          </thead>
+          <tbody className="text-white">
+            <tr className="border-b border-orange-700/30 bg-green-900/20">
+              <td className="py-2 px-3">≤ $206,000</td>
+              <td className="text-right py-2 px-3">$174.70</td>
+              <td className="text-right py-2 px-3">$0</td>
+              <td className="text-right py-2 px-3 font-bold text-green-400">$174.70/mo</td>
+              <td className="text-right py-2 px-3 font-bold text-green-400">$349/mo</td>
+            </tr>
+            <tr className="border-b border-orange-700/30">
+              <td className="py-2 px-3">$206,001 - $258,000</td>
+              <td className="text-right py-2 px-3">$244.60</td>
+              <td className="text-right py-2 px-3">$12.90</td>
+              <td className="text-right py-2 px-3 font-bold text-yellow-400">$257.50/mo</td>
+              <td className="text-right py-2 px-3 font-bold text-yellow-400">$515/mo</td>
+            </tr>
+            <tr className="border-b border-orange-700/30">
+              <td className="py-2 px-3">$258,001 - $322,000</td>
+              <td className="text-right py-2 px-3">$349.40</td>
+              <td className="text-right py-2 px-3">$33.30</td>
+              <td className="text-right py-2 px-3 font-bold text-orange-400">$382.70/mo</td>
+              <td className="text-right py-2 px-3 font-bold text-orange-400">$765/mo</td>
+            </tr>
+            <tr className="border-b border-orange-700/30">
+              <td className="py-2 px-3">$322,001 - $386,000</td>
+              <td className="text-right py-2 px-3">$454.20</td>
+              <td className="text-right py-2 px-3">$53.80</td>
+              <td className="text-right py-2 px-3 font-bold text-orange-400">$508/mo</td>
+              <td className="text-right py-2 px-3 font-bold text-orange-400">$1,016/mo</td>
+            </tr>
+            <tr className="border-b border-orange-700/30 bg-red-900/20">
+              <td className="py-2 px-3"> greater than $386,000</td>
+              <td className="text-right py-2 px-3">$559.00</td>
+              <td className="text-right py-2 px-3">$74.20</td>
+              <td className="text-right py-2 px-3 font-bold text-red-400">$633.20/mo</td>
+              <td className="text-right py-2 px-3 font-bold text-red-400">$1,266/mo</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-orange-900/20 rounded p-3">
+          <div className="font-semibold text-orange-300 mb-2 text-sm">🎯 Avoidance Strategies:</div>
+          <ul className="text-xs text-slate-300 space-y-1">
+            <li>• Use QCDs to reduce AGI (not RMDs alone)</li>
+            <li>• Harvest losses to offset gains</li>
+            <li>• Time Roth conversions before age 63 (2-year lookback)</li>
+            <li>• Spread large stock sales across years</li>
+            <li>• Consider municipal bonds (tax-free income)</li>
+          </ul>
+        </div>
+        
+        <div className="bg-red-900/20 rounded p-3">
+          <div className="font-semibold text-red-300 mb-2 text-sm">⚠️ Cliff Effect:</div>
+          <div className="text-xs text-slate-300">
+            <div className="mb-2">Going from $206K to $207K income adds <strong className="text-yellow-400">$83/month ($2K/year)</strong> in surcharges!</div>
+            <div>Marginal tax rate at cliffs can exceed <strong className="text-red-400">50%</strong> when combining federal tax + IRMAA + state tax.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* QCD Calculator */}
+    <div className="bg-gradient-to-br from-indigo-900/40 to-indigo-800/40 border border-indigo-500/30 rounded-lg p-6">
+      <h3 className="text-2xl font-semibold mb-4 flex items-center">
+        <span className="text-2xl mr-2">🧮</span>
+        QCD Strategy Calculator
+      </h3>
+      
+      {(() => {
+        const age73RMD = iraAmount / 26.5;
+        const maxQCD = 105000;
+        const potentialQCD = Math.min(age73RMD, maxQCD);
+        const taxSavings = potentialQCD * 0.24;
+        const irmaaSavings = age73RMD > 206000 && (age73RMD - potentialQCD) < 206000 ? 2000 : 0;
+        const yearsEligible = 90 - 70.5;
+        const lifetimeSavings = taxSavings * yearsEligible + irmaaSavings * 20;
+        
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div className="bg-indigo-900/20 rounded p-4">
+                <div className="text-sm text-indigo-300 mb-2">Your Situation at Age 73:</div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Required RMD:</span>
+                    <span className="text-white font-bold">${(age73RMD / 1000).toFixed(0)}K</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Maximum QCD:</span>
+                    <span className="text-white font-bold">${(maxQCD / 1000).toFixed(0)}K</span>
+                  </div>
+                  <div className="flex justify-between border-t border-indigo-600/30 pt-2">
+                    <span className="text-slate-400">Potential QCD:</span>
+                    <span className="text-green-400 font-bold">${(potentialQCD / 1000).toFixed(0)}K</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Remaining RMD taxable:</span>
+                    <span className="text-white">${((age73RMD - potentialQCD) / 1000).toFixed(0)}K</span>
                   </div>
                 </div>
-                
-                <div className="bg-slate-800/50 rounded p-4 mb-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-                    <div>
-                      <div className="text-slate-400">Total Income (30 years)</div>
-                      <div className="text-xl font-bold text-green-400">${((incomeProjection.totalAnnualDividends * 30) / 1000000).toFixed(1)}M</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-400">Total Taxes (30 years)</div>
-                      <div className="text-xl font-bold text-red-400">${((incomeProjection.totalAnnualTaxes * 15 + incomeProjection.dividendTax * 15) / 1000000).toFixed(1)}M</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-400">Total Living Expenses</div>
-                      <div className="text-xl font-bold">${((incomeProjection.annualLivingExpenses * 30) / 1000000).toFixed(1)}M</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-400">Portfolio Growth</div>
-                      <div className="text-xl font-bold text-green-400">$12.6M → ${(age90Portfolio.total / 1000000).toFixed(1)}M</div>
-                      <div className="text-xs text-slate-400 mt-1">@ {expectedGrowthRate}% annual return</div>
-                    </div>
+              </div>
+              
+              <div className="bg-green-900/20 rounded p-4">
+                <div className="text-sm text-green-300 mb-2 font-semibold">Annual Savings:</div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Income tax saved (24%):</span>
+                    <span className="text-green-400 font-bold">${(taxSavings / 1000).toFixed(1)}K</span>
                   </div>
-                  
-                  <div className="border-t border-slate-600 pt-4">
-                    <div className="text-sm font-semibold text-slate-300 mb-3">Portfolio Composition at Age 90 (Year 30) @ {expectedGrowthRate}% Annual Return:</div>
-                    <div className="grid grid-cols-3 gap-4 text-xs">
-                      <div className="bg-blue-900/20 border border-blue-600/30 rounded p-3">
-                        <div className="text-blue-400 font-semibold mb-1">Taxable Brokerage</div>
-                        <div className="text-2xl font-bold text-blue-400">${(age90Portfolio.brokerage / 1000000).toFixed(1)}M</div>
-                        <div className="text-slate-400 mt-1">Income source</div>
-                        <div className="text-slate-500 text-xs">Stepped-up basis at death</div>
-                      </div>
-                      <div className="bg-yellow-900/20 border border-yellow-600/30 rounded p-3">
-                        <div className="text-yellow-400 font-semibold mb-1">Traditional IRA</div>
-                        <div className="text-2xl font-bold text-yellow-400">${(age90Portfolio.ira / 1000000).toFixed(1)}M</div>
-                        <div className="text-slate-400 mt-1">Subject to RMDs</div>
-                        <div className="text-slate-500 text-xs">Taxable to heirs</div>
-                      </div>
-                      <div className="bg-green-900/20 border border-green-600/30 rounded p-3">
-                        <div className="text-green-400 font-semibold mb-1">Roth IRA</div>
-                        <div className="text-2xl font-bold text-green-400">${(age90Portfolio.roth / 1000000).toFixed(1)}M</div>
-                        <div className="text-slate-400 mt-1">Tax-free forever!</div>
-                        <div className="text-slate-500 text-xs">Tax-free to heirs</div>
-                      </div>
+                  {irmaaSavings > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">IRMAA avoided:</span>
+                      <span className="text-green-400 font-bold">$2.0K</span>
                     </div>
-                    <div className="mt-3 text-xs text-slate-400">
-                      <strong>Total Portfolio at Age 90:</strong> ${(age90Portfolio.total / 1000000).toFixed(1)}M (started at $12.6M, grew {((age90Portfolio.total / 12600000 - 1) * 100).toFixed(0)}%)
-                      <br/><strong>Key Insight:</strong> Roth IRA grew from $0 to ${(age90Portfolio.roth / 1000000).toFixed(1)}M tax-free. Worth 40% more to heirs than Traditional IRA of same size.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto max-h-96 overflow-y-auto">
-                  <table className="w-full text-xs">
-                    <thead className="bg-slate-700 sticky top-0">
-                      <tr>
-                        <th className="p-2 text-left">Year</th>
-                        <th className="p-2 text-left">Age</th>
-                        <th className="p-2 text-right">Dividends</th>
-                        <th className="p-2 text-right">RMD</th>
-                        <th className="p-2 text-right">Roth Conv</th>
-                        <th className="p-2 text-right">Total Income</th>
-                        <th className="p-2 text-right">Taxes</th>
-                        <th className="p-2 text-right">Living Exp</th>
-                        <th className="p-2 text-right">Net Cash</th>
-                        <th className="p-2 text-right">Brokerage</th>
-                        <th className="p-2 text-right">Trad IRA</th>
-                        <th className="p-2 text-right">Roth IRA</th>
-                        <th className="p-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-700">
-                      {(() => {
-                        const projectionYears = [];
-                        let brokerageValue = taxableAmount;
-                        let iraValue = iraAmount;
-                        let rothValue = 0;
-                        
-                        // Use SAME logic as summary box
-                        // expectedGrowthRate is the user-adjustable total return assumption
-                        const totalReturnRate = expectedGrowthRate / 100; // e.g., 8% = 0.08
-                        const dividendYield = 0.025; // 2.5% dividend yield from brokerage
-                        
-                        // Brokerage: Total return minus dividend yield (dividends paid out)
-                        // IRA/Roth: Full total return (everything reinvested)
-                        const brokerageGrowthRate = Math.max(0.01, totalReturnRate - dividendYield);
-                        const iraGrowthRate = totalReturnRate;
-                        const rothGrowthRate = totalReturnRate;
-                        
-                        for (let year = 0; year < 30; year++) {
-                          const age = 60 + year;
-                          const isPostRMD = age >= 73;
-                          
-                          // Dividend income from brokerage (paid out, not reinvested)
-                          const dividendIncome = incomeProjection.totalAnnualDividends;
-                          
-                          // RMD calculation (from Traditional IRA)
-                          // RMD calculation (SECURE Act 2.0 - 2022 updated Uniform Lifetime Table)
-                          const rmdRates = {73: 0.0377, 74: 0.0392, 75: 0.0407, 76: 0.0422, 77: 0.0437, 78: 0.0453, 79: 0.0470, 80: 0.0495, 81: 0.0515, 82: 0.0536, 83: 0.0558, 84: 0.0581, 85: 0.0625, 86: 0.0658, 87: 0.0694, 88: 0.0733, 89: 0.0775, 90: 0.0820};
-                          const rmdAmount = isPostRMD && iraValue > 0 ? (iraValue * (rmdRates[age] || 0.07)) : 0;
-                          
-                          // Roth conversion (find matching year in rothTimeline)
-                          const rothYear = rothTimeline.find(r => r.age === age);
-                          const conversionAmount = rothYear ? rothYear.conversion : 0;
-                          const conversionTax = rothYear ? rothYear.allInCost : 0;
-                          
-                          // Total income (dividends + RMD)
-                          const totalIncome = dividendIncome + rmdAmount;
-                          
-                          // Tax calculation
-                          const dividendTax = incomeProjection.dividendTax;
-                          const rmdTax = rmdAmount * 0.24; // Simplified
-                          const totalTax = dividendTax + rmdTax + conversionTax;
-                          
-                          // Living expenses (adjust for inflation 2%/year)
-                          const livingExpenses = incomeProjection.annualLivingExpenses * Math.pow(1.02, year);
-                          
-                          // Net cash flow (what's left after income - taxes - living expenses)
-                          const netCashFlow = totalIncome - totalTax - livingExpenses;
-                          
-                          // ACCOUNT CHANGES (Uses expectedGrowthRate = {expectedGrowthRate}%):
-                          
-                          // Brokerage: Dividends paid out, principal grows at capital appreciation rate
-                          // Net change = cash in (dividends + RMD) - cash out (taxes + living)
-                          brokerageValue = (brokerageValue + dividendIncome + rmdAmount - totalTax - livingExpenses) * (1 + brokerageGrowthRate);
-                          
-                          // Traditional IRA: Conversions/RMDs taken out, remainder grows at full rate
-                          iraValue = Math.max(0, (iraValue - conversionAmount - rmdAmount) * (1 + iraGrowthRate));
-                          
-                          // Roth IRA: Receives conversions, grows at full rate tax-free
-                          rothValue = (rothValue + conversionAmount) * (1 + rothGrowthRate);
-                          
-                          // Total portfolio
-                          const totalPortfolio = brokerageValue + iraValue + rothValue;
-                          
-                          projectionYears.push({
-                            year: 2026 + year,
-                            age,
-                            dividends: dividendIncome,
-                            rmd: rmdAmount,
-                            conversion: conversionAmount,
-                            totalIncome,
-                            taxes: totalTax,
-                            livingExpenses,
-                            netCashFlow,
-                            brokerage: brokerageValue,
-                            ira: iraValue,
-                            roth: rothValue,
-                            total: totalPortfolio
-                          });
-                        }
-                        
-                        return projectionYears.map((row, idx) => (
-                          <tr key={row.year} className={`hover:bg-slate-700/50 ${row.age === 73 ? 'bg-yellow-900/20 border-t-2 border-yellow-600' : row.netCashFlow < 0 ? 'bg-red-900/10' : ''}`}>
-                            <td className="p-2">{row.year}</td>
-                            <td className="p-2">
-                              {row.age}
-                              {row.age === 73 && <span className="text-yellow-400 ml-1">★</span>}
-                            </td>
-                            <td className="p-2 text-right text-green-400">${(row.dividends / 1000).toFixed(0)}K</td>
-                            <td className="p-2 text-right text-orange-400">
-                              {row.rmd > 0 ? `$${(row.rmd / 1000).toFixed(0)}K` : '-'}
-                            </td>
-                            <td className="p-2 text-right text-purple-400">
-                              {row.conversion > 0 ? `$${(row.conversion / 1000).toFixed(0)}K` : '-'}
-                            </td>
-                            <td className="p-2 text-right font-semibold">${(row.totalIncome / 1000).toFixed(0)}K</td>
-                            <td className="p-2 text-right text-red-400">${(row.taxes / 1000).toFixed(0)}K</td>
-                            <td className="p-2 text-right">${(row.livingExpenses / 1000).toFixed(0)}K</td>
-                            <td className={`p-2 text-right font-semibold ${row.netCashFlow >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {row.netCashFlow >= 0 ? '+' : ''}{(row.netCashFlow / 1000).toFixed(0)}K
-                            </td>
-                            <td className="p-2 text-right text-blue-400">${(row.brokerage / 1000000).toFixed(1)}M</td>
-                            <td className="p-2 text-right text-yellow-400">${(row.ira / 1000000).toFixed(1)}M</td>
-                            <td className="p-2 text-right text-green-400">${(row.roth / 1000000).toFixed(1)}M</td>
-                            <td className="p-2 text-right font-bold">${(row.total / 1000000).toFixed(1)}M</td>
-                          </tr>
-                        ));
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div className="bg-green-900/20 border border-green-600/30 rounded p-3">
-                    <div className="font-semibold text-green-400 mb-1">✓ Years 60-72 (Roth Conversions)</div>
-                    <div className="text-xs text-slate-300">High tax burden but building tax-free Roth. Watch Traditional IRA shrink from $4.1M → $1.2M as money moves to Roth. Portfolio still grows due to 6% returns exceeding net outflows.</div>
-                  </div>
-                  <div className="bg-yellow-900/20 border border-yellow-600/30 rounded p-3">
-                    <div className="font-semibold text-yellow-400 mb-1">★ Age 73+ (RMDs Start)</div>
-                    <div className="text-xs text-slate-300">Roth conversions done! Tax burden drops significantly. RMDs provide additional income from remaining Traditional IRA. Roth IRA continues growing tax-free to $6.8M by age 90.</div>
-                  </div>
-                  <div className="bg-blue-900/20 border border-blue-600/30 rounded p-3">
-                    <div className="font-semibold text-blue-400 mb-1">📈 Account Flows</div>
-                    <div className="text-xs text-slate-300">
-                      <strong>Brokerage:</strong> Pays all bills, grows steadily $8.5M → $11.2M<br/>
-                      <strong>Trad IRA:</strong> Shrinks via conversions/RMDs $4.1M → $4.2M<br/>
-                      <strong>Roth IRA:</strong> Grows from $0 → $6.8M tax-free!
-                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-green-600/30 pt-2 font-bold">
+                    <span className="text-slate-300">Total annual savings:</span>
+                    <span className="text-green-400 text-lg">${((taxSavings + irmaaSavings) / 1000).toFixed(1)}K</span>
                   </div>
                 </div>
               </div>
             </div>
-          )}
+            
+            <div className="space-y-3">
+              <div className="bg-purple-900/20 rounded p-4">
+                <div className="text-sm text-purple-300 mb-2 font-semibold">Lifetime Impact (Age 70.5-90):</div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Years eligible:</span>
+                    <span className="text-white">{yearsEligible} years</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Annual savings:</span>
+                    <span className="text-white">${((taxSavings + irmaaSavings) / 1000).toFixed(1)}K</span>
+                  </div>
+                  <div className="flex justify-between border-t border-purple-600/30 pt-2 font-bold">
+                    <span className="text-slate-300">Lifetime savings:</span>
+                    <span className="text-green-400 text-2xl">${(lifetimeSavings / 1000).toFixed(0)}K</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-blue-900/20 rounded p-4">
+                <div className="text-sm text-blue-300 mb-2 font-semibold">📋 Action Steps:</div>
+                <ol className="text-xs text-slate-300 space-y-1 list-decimal list-inside">
+                  <li>Wait until age 70.5 (can start 2.5 years before RMDs!)</li>
+                  <li>Choose charities (must be 501(c)(3), not DAF)</li>
+                  <li>Contact IRA custodian BEFORE year-end</li>
+                  <li>Request direct transfer to charity (never touch funds)</li>
+                  <li>Get written acknowledgment from charity</li>
+                  <li>Report on tax return (Form 1040, excludes from income)</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
 
+    {/* Summary */}
+    <div className="bg-gradient-to-br from-slate-800 to-slate-700 border border-slate-600 rounded-lg p-6">
+      <h3 className="text-xl font-semibold mb-4">💡 Key Takeaways</h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div className="bg-green-900/20 rounded p-3">
+          <div className="font-semibold text-green-300 mb-2">For Everyone:</div>
+          <ul className="text-slate-300 space-y-1 text-xs">
+            <li>• Asset location: +0.8% alpha</li>
+            <li>• Tax-loss harvesting: $3K-$100K/year</li>
+            <li>• QCDs at 70.5+: $25K+/year savings</li>
+          </ul>
+        </div>
+        <div className="bg-blue-900/20 rounded p-3">
+          <div className="font-semibold text-blue-300 mb-2">Property Owners:</div>
+          <ul className="text-slate-300 space-y-1 text-xs">
+            <li>• Cost segregation: 3-4x depreciation year 1</li>
+            <li>• 1031 exchange: Defer gains forever</li>
+            <li>• STR loophole: Offset ordinary income</li>
+          </ul>
+        </div>
+        <div className="bg-purple-900/20 rounded p-3">
+          <div className="font-semibold text-purple-300 mb-2">High Net Worth:</div>
+          <ul className="text-slate-300 space-y-1 text-xs">
+            <li>• DAF: Front-load giving, avoid cap gains</li>
+            <li>• CRT: $100K+/year income for life</li>
+            <li>• CLT: Estate tax savings $1M+</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
           {activeTab === 'roth' && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold mb-4">Roth Conversion Strategy</h2>
