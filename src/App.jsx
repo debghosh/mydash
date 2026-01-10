@@ -869,7 +869,7 @@ const PortfolioStrategyDashboard = () => {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto">
-          {['personas', 'overview', 'accounts', 'alpha', 'allocation', 'income', 'tax-optimization', 'roth', 'rebalancing', 'etfs'].map(tab => (
+          {['personas', 'overview', 'accounts', 'alpha', 'allocation', 'income', 'tax-optimization', 'roth', 'rebalancing', 'etfs', 'cpa-review'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -879,7 +879,9 @@ const PortfolioStrategyDashboard = () => {
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
             >
-              {tab === 'tax-optimization' ? 'Tax Optimization' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === 'tax-optimization' ? 'Tax Optimization' : 
+               tab === 'cpa-review' ? 'CPA Review' : 
+               tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
@@ -3213,6 +3215,434 @@ const PortfolioStrategyDashboard = () => {
                         <li>• VWO (foreign withholding)</li>
                       </ul>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'cpa-review' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">CPA Review & Follow-Up Checklist</h2>
+                <div className="text-sm text-slate-400">
+                  Tax Year {new Date().getFullYear()}
+                </div>
+              </div>
+
+              {/* Key Tax Deadlines */}
+              <div className="bg-gradient-to-br from-red-900/20 to-red-800/20 border border-red-600/30 rounded-lg p-6">
+                <h3 className="text-xl font-bold text-red-400 mb-4 flex items-center gap-2">
+                  <span>📅</span> Key Tax Deadlines
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-800/50 rounded-lg p-4">
+                    <h4 className="font-semibold text-yellow-400 mb-3">Quarterly Estimated Taxes</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Q1 (Jan 1 - Mar 31):</span>
+                        <span className="font-semibold">April 15</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Q2 (Apr 1 - May 31):</span>
+                        <span className="font-semibold">June 15</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Q3 (Jun 1 - Aug 31):</span>
+                        <span className="font-semibold">September 15</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Q4 (Sep 1 - Dec 31):</span>
+                        <span className="font-semibold">January 15 (next year)</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-4">
+                    <h4 className="font-semibold text-yellow-400 mb-3">Annual Deadlines</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Roth Conversion Deadline:</span>
+                        <span className="font-semibold text-red-400">December 31</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>IRA Contribution Deadline:</span>
+                        <span className="font-semibold">April 15 (next year)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Tax Return Filing:</span>
+                        <span className="font-semibold">April 15 (next year)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>RMD Deadline (if applicable):</span>
+                        <span className="font-semibold text-red-400">December 31</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pre-CPA Meeting Checklist */}
+              <div className="bg-slate-700/50 rounded-lg p-6">
+                <h3 className="text-xl font-bold text-blue-400 mb-4 flex items-center gap-2">
+                  <span>📋</span> Pre-CPA Meeting Preparation
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold text-green-400 mb-3">Documents to Gather</h4>
+                    <div className="space-y-2 text-sm">
+                      {[
+                        'W-2s from all employers',
+                        '1099-DIV (dividend income)',
+                        '1099-INT (interest income)',
+                        '1099-B (brokerage sales)',
+                        '1099-R (retirement distributions)',
+                        '1099-MISC (other income)',
+                        'K-1s (partnership/trust income)',
+                        'Property tax statements',
+                        'Mortgage interest statements (1098)',
+                        'Charitable contribution receipts',
+                        'Medical expense receipts',
+                        'State tax payment records'
+                      ].map((item, idx) => (
+                        <label key={idx} className="flex items-center gap-2 hover:bg-slate-600/30 p-2 rounded cursor-pointer">
+                          <input type="checkbox" className="w-4 h-4" />
+                          <span className="text-slate-300">{item}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-green-400 mb-3">Questions to Discuss</h4>
+                    <div className="space-y-2 text-sm">
+                      {[
+                        'Optimal Roth conversion amount for this year?',
+                        'Should I pre-pay state taxes in December?',
+                        'Are quarterly estimates on track?',
+                        'QCD strategy for next year (if 70½+)?',
+                        'Tax-loss harvesting opportunities?',
+                        'IRMAA bracket management?',
+                        'Should I bunch charitable contributions?',
+                        'Real estate tax payment timing?',
+                        'AMT exposure for this year?',
+                        'Capital gains realization strategy?',
+                        'Health insurance premium deductions?',
+                        'Investment interest expense deduction?'
+                      ].map((item, idx) => (
+                        <label key={idx} className="flex items-center gap-2 hover:bg-slate-600/30 p-2 rounded cursor-pointer">
+                          <input type="checkbox" className="w-4 h-4" />
+                          <span className="text-slate-300">{item}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Year-End Tax Planning Opportunities */}
+              <div className="bg-gradient-to-br from-green-900/20 to-green-800/20 border border-green-600/30 rounded-lg p-6">
+                <h3 className="text-xl font-bold text-green-400 mb-4 flex items-center gap-2">
+                  <span>💡</span> Year-End Tax Planning Opportunities (Before Dec 31)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-slate-800/50 rounded-lg p-4">
+                    <h4 className="font-semibold text-yellow-400 mb-3">Roth Conversions</h4>
+                    <div className="text-sm text-slate-300 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Calculate remaining capacity in current tax bracket</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Execute conversion before Dec 31</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Review IRMAA threshold impact</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Set aside cash for tax payment</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/50 rounded-lg p-4">
+                    <h4 className="font-semibold text-yellow-400 mb-3">Charitable Giving</h4>
+                    <div className="text-sm text-slate-300 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>QCD from IRA (if 70½+, up to $105,000)</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Donate appreciated securities (avoid cap gains)</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Bunch contributions into DAF</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Get receipt/acknowledgment letters</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/50 rounded-lg p-4">
+                    <h4 className="font-semibold text-yellow-400 mb-3">Capital Gains/Losses</h4>
+                    <div className="text-sm text-slate-300 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Harvest tax losses to offset gains</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Realize gains at 0% bracket (if applicable)</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Avoid wash sales (30-day rule)</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Review cost basis elections</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                  <div className="bg-slate-800/50 rounded-lg p-4">
+                    <h4 className="font-semibold text-yellow-400 mb-3">Retirement Accounts</h4>
+                    <div className="text-sm text-slate-300 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Take RMD if 73+ (by Dec 31)</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Max out 401(k) contributions</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Consider backdoor Roth (if applicable)</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Review beneficiary designations</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/50 rounded-lg p-4">
+                    <h4 className="font-semibold text-yellow-400 mb-3">Deduction Timing</h4>
+                    <div className="text-sm text-slate-300 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Prepay Jan property tax in Dec?</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Prepay state income tax Q1 estimate?</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Accelerate medical expenses?</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Make Jan mortgage payment in Dec?</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/50 rounded-lg p-4">
+                    <h4 className="font-semibold text-yellow-400 mb-3">Business/Self-Employment</h4>
+                    <div className="text-sm text-slate-300 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Accelerate/defer business income</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Buy equipment (Section 179/Bonus)</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Maximize SEP-IRA/Solo 401(k)</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <input type="checkbox" className="mt-1" />
+                        <span>Document home office expenses</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Post-Meeting Follow-Up Actions */}
+              <div className="bg-slate-700/50 rounded-lg p-6">
+                <h3 className="text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
+                  <span>✅</span> Post-CPA Meeting Action Items
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold text-yellow-400 mb-3">Immediate Actions (Within 1 Week)</h4>
+                    <div className="space-y-2 text-sm">
+                      {[
+                        'Execute agreed-upon Roth conversion',
+                        'Make quarterly estimated tax payment',
+                        'Initiate QCD to charity (if recommended)',
+                        'Complete tax-loss harvesting trades',
+                        'Update withholding (W-4 or 1099)',
+                        'Schedule follow-up meeting date',
+                        'Implement recommended charitable strategy'
+                      ].map((item, idx) => (
+                        <label key={idx} className="flex items-center gap-2 hover:bg-slate-600/30 p-2 rounded cursor-pointer">
+                          <input type="checkbox" className="w-4 h-4" />
+                          <span className="text-slate-300">{item}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-yellow-400 mb-3">Ongoing Monitoring (Throughout Year)</h4>
+                    <div className="space-y-2 text-sm">
+                      {[
+                        'Track income against projections',
+                        'Monitor capital gains/losses realized',
+                        'Review quarterly estimate adequacy',
+                        'Watch for IRMAA threshold proximity',
+                        'Keep charitable contribution records',
+                        'Document business expenses monthly',
+                        'Review portfolio tax efficiency',
+                        'Schedule Q4 tax planning call',
+                        'Update financial plan quarterly'
+                      ].map((item, idx) => (
+                        <label key={idx} className="flex items-center gap-2 hover:bg-slate-600/30 p-2 rounded cursor-pointer">
+                          <input type="checkbox" className="w-4 h-4" />
+                          <span className="text-slate-300">{item}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current Tax Situation Summary (from other tabs) */}
+              <div className="bg-gradient-to-br from-blue-900/20 to-blue-800/20 border border-blue-600/30 rounded-lg p-6">
+                <h3 className="text-xl font-bold text-blue-400 mb-4 flex items-center gap-2">
+                  <span>📊</span> Current Tax Planning Summary
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-slate-800/50 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-slate-400 mb-2">Roth Conversion Plan</h4>
+                    <div className="text-2xl font-bold text-green-400 mb-1">
+                      ${(conversionAmount / 1000).toFixed(0)}K/year
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {frontLoadConversions ? 'Front-loaded strategy' : 'Level conversion strategy'}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-slate-800/50 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-slate-400 mb-2">Tax Rates</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Federal:</span>
+                        <span className="font-semibold">24%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">State:</span>
+                        <span className="font-semibold">{stateTaxRate}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Cap Gains:</span>
+                        <span className="font-semibold">{capitalGainsRate}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/50 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-slate-400 mb-2">Portfolio Value</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Taxable:</span>
+                        <span className="font-semibold">${(taxableAmount / 1000000).toFixed(1)}M</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">IRA:</span>
+                        <span className="font-semibold">${(iraAmount / 1000000).toFixed(1)}M</span>
+                      </div>
+                      <div className="flex justify-between border-t border-slate-600 pt-1 mt-1">
+                        <span className="text-slate-400">Total:</span>
+                        <span className="font-semibold text-blue-400">${((taxableAmount + iraAmount) / 1000000).toFixed(1)}M</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes Section */}
+              <div className="bg-slate-700/50 rounded-lg p-6">
+                <h3 className="text-xl font-bold text-yellow-400 mb-4 flex items-center gap-2">
+                  <span>📝</span> CPA Meeting Notes & Action Items
+                </h3>
+                <textarea
+                  className="w-full h-40 bg-slate-800 border border-slate-600 rounded-lg p-4 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  placeholder="Document key decisions, action items, and recommendations from your CPA meeting...
+
+Example:
+- Agreed to convert $250K to Roth in December
+- Will make QCD of $50K to charity instead of cash donation
+- Need to harvest ~$30K in losses before year-end
+- Schedule Q4 review in November to finalize strategy"
+                ></textarea>
+              </div>
+
+              {/* Quick Reference Card */}
+              <div className="bg-gradient-to-br from-yellow-900/20 to-yellow-800/20 border border-yellow-600/30 rounded-lg p-6">
+                <h3 className="text-xl font-bold text-yellow-400 mb-4">🎯 Quick Reference: Tax-Smart Strategies</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <h4 className="font-semibold text-green-400 mb-2">Income Tax Reduction</h4>
+                    <ul className="space-y-1 text-slate-300">
+                      <li>• Max out retirement contributions (401k, IRA)</li>
+                      <li>• HSA contributions ($8,300/family, $4,150/individual)</li>
+                      <li>• QCD instead of cash donations (age 70½+)</li>
+                      <li>• Bunch itemized deductions in alternating years</li>
+                      <li>• Harvest tax losses to offset gains</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-green-400 mb-2">Capital Gains Management</h4>
+                    <ul className="space-y-1 text-slate-300">
+                      <li>• Hold investments >1 year (15-20% vs 24-37%)</li>
+                      <li>• Donate appreciated stock (avoid cap gains + deduction)</li>
+                      <li>• Use tax-loss harvesting strategically</li>
+                      <li>• Consider 0% cap gains bracket if income allows</li>
+                      <li>• Specific share identification for sales</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-green-400 mb-2">IRMAA Avoidance (Medicare)</h4>
+                    <ul className="space-y-1 text-slate-300">
+                      <li>• Single: Keep MAGI under $106,000 (2026)</li>
+                      <li>• Married: Keep MAGI under $212,000 (2026)</li>
+                      <li>• Time Roth conversions carefully</li>
+                      <li>• Manage capital gains realization</li>
+                      <li>• File IRMAA appeal if income unusual</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-green-400 mb-2">Estate & Gift Planning</h4>
+                    <ul className="space-y-1 text-slate-300">
+                      <li>• Annual gift exclusion: $18,000/person (2024)</li>
+                      <li>• Lifetime exemption: $13.61M (2024, sunsets 2025)</li>
+                      <li>• Update beneficiary designations regularly</li>
+                      <li>• Consider Roth conversions (tax-free to heirs)</li>
+                      <li>• Review step-up in basis strategies</li>
+                    </ul>
                   </div>
                 </div>
               </div>
