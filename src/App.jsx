@@ -27,6 +27,7 @@ const PortfolioStrategyDashboard = () => {
   // Portfolio parameters
   const [taxableAmount, setTaxableAmount] = useState(8500000);
   const [iraAmount, setIraAmount] = useState(4100000);
+  const [rothAmount, setRothAmount] = useState(0); // Will grow as conversions happen
 
   // MARKET REGIME DEFINITIONS (Comprehensive)
   // Each regime combines: Trend + Volatility + Inflation + Risk Sentiment
@@ -1240,88 +1241,362 @@ const PortfolioStrategyDashboard = () => {
             <div className="space-y-6">
               <h2 className="text-2xl font-bold mb-4">Account-Specific Allocations</h2>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* TAXABLE ACCOUNT */}
-                <div className="bg-gradient-to-br from-green-900/20 to-blue-900/20 rounded-lg p-6 border border-green-500/30">
-                  <h3 className="text-xl font-semibold mb-4 text-green-400">
-                    Taxable Brokerage: ${(taxableAmount / 1000000).toFixed(1)}M
-                  </h3>
-                  <p className="text-sm text-slate-300 mb-4">
-                    <strong>Focus:</strong> Income generation + Tax efficiency
-                  </p>
-                  
-                  <div className="space-y-2">
-                    {taxableAllocations[marketRegime] ? Object.entries(taxableAllocations[marketRegime]).map(([etf, data]) => (
-                      <div key={etf} className="bg-slate-700/50 rounded p-3">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-semibold text-sm">{etf}</span>
-                          <span className="text-green-400">{(data.allocation * 100).toFixed(0)}%</span>
-                        </div>
-                        <div className="text-xs text-slate-400 space-y-1">
-                          <div>Amount: ${((taxableAmount * data.allocation) / 1000000).toFixed(2)}M</div>
-                          <div>Yield: {data.yield}% = ${((taxableAmount * data.allocation * data.yield / 100) / 1000).toFixed(1)}K/year</div>
-                          <div className="text-yellow-400">Tax: {data.taxStatus}</div>
+              {/* Check if Traditional IRA and Roth IRA use the same allocation strategy */}
+              {(() => {
+                const traditionalAndRothUseSameStrategy = true; // Both use iraAllocations[marketRegime]
+                const totalTaxAdvantaged = iraAmount + rothAmount;
+                
+                if (traditionalAndRothUseSameStrategy && rothAmount === 0) {
+                  // Roth is $0, show Traditional being converted to Roth
+                  return (
+                    <>
+                      <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 mb-4">
+                        <div className="flex items-center gap-2 text-sm text-blue-400">
+                          <span className="text-lg">ℹ️</span>
+                          <span>Traditional IRA is being converted to Roth IRA. Both accounts use the same growth-focused allocation strategy.</span>
                         </div>
                       </div>
-                    )) : <div className="text-red-400 p-4">Error: Invalid regime selected</div>}
-                  </div>
-                  
-                  <div className="mt-4 p-3 bg-green-900/20 rounded">
-                    <div className="text-sm font-semibold mb-1">Total Annual Income:</div>
-                    <div className="text-2xl font-bold text-green-400">
-                      ${(incomeProjection.totalAnnualDividends / 1000).toFixed(0)}K
-                    </div>
-                  </div>
-                </div>
+                      
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* TAXABLE ACCOUNT */}
+                        <div className="bg-gradient-to-br from-green-900/20 to-blue-900/20 rounded-lg p-6 border border-green-500/30">
+                          <h3 className="text-xl font-semibold mb-4 text-green-400">
+                            Taxable Brokerage
+                          </h3>
+                          <div className="text-2xl font-bold mb-2">${(taxableAmount / 1000000).toFixed(1)}M</div>
+                          <p className="text-sm text-slate-300 mb-4">
+                            <strong>Focus:</strong> Income generation + Tax efficiency
+                          </p>
+                          
+                          <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {taxableAllocations[marketRegime] ? Object.entries(taxableAllocations[marketRegime]).map(([etf, data]) => (
+                              <div key={etf} className="bg-slate-700/50 rounded p-3">
+                                <div className="flex justify-between items-start mb-1">
+                                  <span className="font-semibold text-sm">{etf}</span>
+                                  <span className="text-green-400">{(data.allocation * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="text-xs text-slate-400 space-y-1">
+                                  <div>Amount: ${((taxableAmount * data.allocation) / 1000000).toFixed(2)}M</div>
+                                  <div>Yield: {data.yield}% = ${((taxableAmount * data.allocation * data.yield / 100) / 1000).toFixed(1)}K/year</div>
+                                  <div className="text-yellow-400">Tax: {data.taxStatus}</div>
+                                </div>
+                              </div>
+                            )) : <div className="text-red-400 p-4">Error: Invalid regime selected</div>}
+                          </div>
+                          
+                          <div className="mt-4 p-3 bg-green-900/20 rounded">
+                            <div className="text-sm font-semibold mb-1">Total Annual Income:</div>
+                            <div className="text-2xl font-bold text-green-400">
+                              ${(incomeProjection.totalAnnualDividends / 1000).toFixed(0)}K
+                            </div>
+                          </div>
+                        </div>
 
-                {/* IRA ACCOUNT */}
-                <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-lg p-6 border border-purple-500/30">
-                  <h3 className="text-xl font-semibold mb-4 text-purple-400">
-                    Traditional IRA: ${(iraAmount / 1000000).toFixed(1)}M
-                  </h3>
-                  <p className="text-sm text-slate-300 mb-2">
-                    <strong>Focus:</strong> GROWTH (14+ year horizon) + Tax-inefficient assets
-                  </p>
-                  <p className="text-xs text-yellow-400 mb-4">
-                    ⚡ Allocation adjusts with market regime ({marketRegime}) - always growth-tilted
-                  </p>
-                  
-                  <div className="space-y-2">
-                    {iraAllocations[marketRegime] ? Object.entries(iraAllocations[marketRegime]).map(([etf, data]) => (
-                      <div key={etf} className="bg-slate-700/50 rounded p-3">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-semibold text-sm">{etf}</span>
-                          <span className="text-purple-400">{(data.allocation * 100).toFixed(0)}%</span>
+                        {/* TRADITIONAL IRA ACCOUNT */}
+                        <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-lg p-6 border border-purple-500/30">
+                          <h3 className="text-xl font-semibold mb-4 text-purple-400">
+                            Traditional IRA
+                          </h3>
+                          <div className="text-2xl font-bold mb-2">${(iraAmount / 1000000).toFixed(1)}M</div>
+                          <p className="text-sm text-slate-300 mb-2">
+                            <strong>Focus:</strong> GROWTH (14+ year horizon)
+                          </p>
+                          <p className="text-xs text-yellow-400 mb-4">
+                            ⚡ Converting to Roth over {continueAfterRMD ? '20' : '14'} years
+                          </p>
+                          
+                          <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {iraAllocations[marketRegime] ? Object.entries(iraAllocations[marketRegime]).map(([etf, data]) => (
+                              <div key={etf} className="bg-slate-700/50 rounded p-3">
+                                <div className="flex justify-between items-start mb-1">
+                                  <span className="font-semibold text-sm">{etf}</span>
+                                  <span className="text-purple-400">{(data.allocation * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="text-xs text-slate-400 space-y-1">
+                                  <div>Amount: ${((iraAmount * data.allocation) / 1000000).toFixed(2)}M</div>
+                                  <div>Yield: {data.yield}%</div>
+                                  <div className="text-slate-500 italic">{data.note}</div>
+                                </div>
+                              </div>
+                            )) : <div className="text-red-400 p-4">Error: Invalid regime selected</div>}
+                          </div>
+                          
+                          <div className="mt-4 p-3 bg-purple-900/20 rounded border border-purple-600/30">
+                            <div className="text-sm font-semibold mb-1">Conversion Status:</div>
+                            <div className="text-lg text-purple-400">
+                              Converting to Roth
+                            </div>
+                            <div className="text-xs text-slate-400 mt-1">
+                              {continueAfterRMD ? '20-year' : '14-year'} plan (age {continueAfterRMD ? '60→80' : '60→73'})
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-xs text-slate-400 space-y-1">
-                          <div>Amount: ${((iraAmount * data.allocation) / 1000000).toFixed(2)}M</div>
-                          <div>Yield: {data.yield}%</div>
-                          <div className="text-slate-500 italic">{data.note}</div>
+
+                        {/* ROTH IRA ACCOUNT - Empty State */}
+                        <div className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 rounded-lg p-6 border border-cyan-500/30">
+                          <h3 className="text-xl font-semibold mb-4 text-cyan-400">
+                            Roth IRA
+                          </h3>
+                          <div className="text-2xl font-bold mb-2">${(rothAmount / 1000000).toFixed(1)}M</div>
+                          <p className="text-sm text-slate-300 mb-2">
+                            <strong>Focus:</strong> Tax-free growth forever
+                          </p>
+                          <p className="text-xs text-cyan-400 mb-4">
+                            🎯 Same strategy as Traditional IRA
+                          </p>
+                          
+                          <div className="bg-slate-700/30 rounded p-6 text-center">
+                            <div className="text-4xl mb-3">💡</div>
+                            <div className="text-sm text-slate-300 mb-2">
+                              <strong>Roth IRA Growing via Conversions</strong>
+                            </div>
+                            <div className="text-xs text-slate-400">
+                              Traditional IRA assets being converted to Roth over {continueAfterRMD ? '20' : '14'} years. Once converted, uses identical allocation strategy.
+                            </div>
+                            <div className="mt-3 text-xs text-cyan-400">
+                              See <strong>Roth</strong> tab for conversion timeline
+                            </div>
+                          </div>
+                          
+                          <div className="mt-4 p-3 bg-cyan-900/20 rounded border border-cyan-600/30">
+                            <div className="text-sm font-semibold mb-1">Tax Status:</div>
+                            <div className="text-lg text-cyan-400">
+                              100% Tax-Free
+                            </div>
+                            <div className="text-xs text-slate-400 mt-1">
+                              No RMDs, no taxes on withdrawals
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    )) : <div className="text-red-400 p-4">Error: Invalid regime selected</div>}
-                  </div>
-                  
-                  <div className="mt-4 p-3 bg-purple-900/20 rounded border border-purple-600/30">
-                    <div className="text-sm font-semibold mb-1">Converting to Roth:</div>
-                    <div className="text-lg text-purple-400">
-                      {continueAfterRMD ? '20-year plan' : '14-year plan'} (by age {continueAfterRMD ? 80 : 73})
-                    </div>
-                    {frontLoadConversions && (
-                      <div className="text-xs text-yellow-400 mt-1">
-                        Front-loading: Higher conversions early years
+                    </>
+                  );
+                } else if (traditionalAndRothUseSameStrategy && rothAmount > 0) {
+                  // Both have balances and use same strategy - combine them
+                  return (
+                    <>
+                      <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 mb-4">
+                        <div className="flex items-center gap-2 text-sm text-blue-400">
+                          <span className="text-lg">ℹ️</span>
+                          <span>Traditional IRA and Roth IRA use the same growth-focused allocation strategy. Combined view shown below.</span>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+                      
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* TAXABLE ACCOUNT */}
+                        <div className="bg-gradient-to-br from-green-900/20 to-blue-900/20 rounded-lg p-6 border border-green-500/30">
+                          <h3 className="text-xl font-semibold mb-4 text-green-400">
+                            Taxable Brokerage
+                          </h3>
+                          <div className="text-2xl font-bold mb-2">${(taxableAmount / 1000000).toFixed(1)}M</div>
+                          <p className="text-sm text-slate-300 mb-4">
+                            <strong>Focus:</strong> Income generation + Tax efficiency
+                          </p>
+                          
+                          <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {taxableAllocations[marketRegime] ? Object.entries(taxableAllocations[marketRegime]).map(([etf, data]) => (
+                              <div key={etf} className="bg-slate-700/50 rounded p-3">
+                                <div className="flex justify-between items-start mb-1">
+                                  <span className="font-semibold text-sm">{etf}</span>
+                                  <span className="text-green-400">{(data.allocation * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="text-xs text-slate-400 space-y-1">
+                                  <div>Amount: ${((taxableAmount * data.allocation) / 1000000).toFixed(2)}M</div>
+                                  <div>Yield: {data.yield}% = ${((taxableAmount * data.allocation * data.yield / 100) / 1000).toFixed(1)}K/year</div>
+                                  <div className="text-yellow-400">Tax: {data.taxStatus}</div>
+                                </div>
+                              </div>
+                            )) : <div className="text-red-400 p-4">Error: Invalid regime selected</div>}
+                          </div>
+                          
+                          <div className="mt-4 p-3 bg-green-900/20 rounded">
+                            <div className="text-sm font-semibold mb-1">Total Annual Income:</div>
+                            <div className="text-2xl font-bold text-green-400">
+                              ${(incomeProjection.totalAnnualDividends / 1000).toFixed(0)}K
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* COMBINED TAX-ADVANTAGED ACCOUNTS */}
+                        <div className="bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-cyan-900/20 rounded-lg p-6 border border-purple-500/30">
+                          <h3 className="text-xl font-semibold mb-4">
+                            <span className="text-purple-400">Tax-Advantaged Accounts</span>
+                          </h3>
+                          <div className="flex justify-between items-center mb-4">
+                            <div>
+                              <div className="text-sm text-slate-400">Traditional IRA</div>
+                              <div className="text-xl font-bold text-purple-400">${(iraAmount / 1000000).toFixed(1)}M</div>
+                            </div>
+                            <div className="text-2xl text-slate-600">+</div>
+                            <div>
+                              <div className="text-sm text-slate-400">Roth IRA</div>
+                              <div className="text-xl font-bold text-cyan-400">${(rothAmount / 1000000).toFixed(1)}M</div>
+                            </div>
+                            <div className="text-2xl text-slate-600">=</div>
+                            <div>
+                              <div className="text-sm text-slate-400">Total</div>
+                              <div className="text-2xl font-bold text-white">${(totalTaxAdvantaged / 1000000).toFixed(1)}M</div>
+                            </div>
+                          </div>
+                          
+                          <p className="text-sm text-slate-300 mb-2">
+                            <strong>Focus:</strong> GROWTH (14+ year horizon)
+                          </p>
+                          <p className="text-xs text-yellow-400 mb-4">
+                            ⚡ Both accounts use identical allocation strategy
+                          </p>
+                          
+                          <div className="space-y-2 max-h-80 overflow-y-auto">
+                            {iraAllocations[marketRegime] ? Object.entries(iraAllocations[marketRegime]).map(([etf, data]) => (
+                              <div key={etf} className="bg-slate-700/50 rounded p-3">
+                                <div className="flex justify-between items-start mb-1">
+                                  <span className="font-semibold text-sm">{etf}</span>
+                                  <span className="text-purple-400">{(data.allocation * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="text-xs text-slate-400 space-y-1">
+                                  <div className="flex justify-between">
+                                    <span className="text-purple-300">Traditional:</span>
+                                    <span>${((iraAmount * data.allocation) / 1000000).toFixed(2)}M</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-cyan-300">Roth:</span>
+                                    <span>${((rothAmount * data.allocation) / 1000000).toFixed(2)}M</span>
+                                  </div>
+                                  <div className="flex justify-between font-semibold border-t border-slate-600 pt-1">
+                                    <span>Total:</span>
+                                    <span>${((totalTaxAdvantaged * data.allocation) / 1000000).toFixed(2)}M</span>
+                                  </div>
+                                  <div className="text-slate-500 italic mt-1">{data.note}</div>
+                                </div>
+                              </div>
+                            )) : <div className="text-red-400 p-4">Error: Invalid regime selected</div>}
+                          </div>
+                          
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            <div className="p-3 bg-purple-900/20 rounded border border-purple-600/30">
+                              <div className="text-xs font-semibold mb-1 text-purple-400">Traditional IRA:</div>
+                              <div className="text-sm">Subject to RMDs</div>
+                              <div className="text-xs text-slate-400 mt-1">Taxable at withdrawal</div>
+                            </div>
+                            <div className="p-3 bg-cyan-900/20 rounded border border-cyan-600/30">
+                              <div className="text-xs font-semibold mb-1 text-cyan-400">Roth IRA:</div>
+                              <div className="text-sm">No RMDs</div>
+                              <div className="text-xs text-slate-400 mt-1">100% tax-free</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  );
+                } else {
+                  // They use different strategies - show 3 separate columns
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* TAXABLE ACCOUNT */}
+                        <div className="bg-gradient-to-br from-green-900/20 to-blue-900/20 rounded-lg p-6 border border-green-500/30">
+                          <h3 className="text-xl font-semibold mb-4 text-green-400">
+                            Taxable Brokerage
+                          </h3>
+                          <div className="text-2xl font-bold mb-2">${(taxableAmount / 1000000).toFixed(1)}M</div>
+                          <p className="text-sm text-slate-300 mb-4">
+                            <strong>Focus:</strong> Income generation + Tax efficiency
+                          </p>
+                          
+                          <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {taxableAllocations[marketRegime] ? Object.entries(taxableAllocations[marketRegime]).map(([etf, data]) => (
+                              <div key={etf} className="bg-slate-700/50 rounded p-3">
+                                <div className="flex justify-between items-start mb-1">
+                                  <span className="font-semibold text-sm">{etf}</span>
+                                  <span className="text-green-400">{(data.allocation * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="text-xs text-slate-400 space-y-1">
+                                  <div>Amount: ${((taxableAmount * data.allocation) / 1000000).toFixed(2)}M</div>
+                                  <div>Yield: {data.yield}% = ${((taxableAmount * data.allocation * data.yield / 100) / 1000).toFixed(1)}K/year</div>
+                                  <div className="text-yellow-400">Tax: {data.taxStatus}</div>
+                                </div>
+                              </div>
+                            )) : <div className="text-red-400 p-4">Error: Invalid regime selected</div>}
+                          </div>
+                          
+                          <div className="mt-4 p-3 bg-green-900/20 rounded">
+                            <div className="text-sm font-semibold mb-1">Total Annual Income:</div>
+                            <div className="text-2xl font-bold text-green-400">
+                              ${(incomeProjection.totalAnnualDividends / 1000).toFixed(0)}K
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* TRADITIONAL IRA */}
+                        <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-lg p-6 border border-purple-500/30">
+                          <h3 className="text-xl font-semibold mb-4 text-purple-400">
+                            Traditional IRA
+                          </h3>
+                          <div className="text-2xl font-bold mb-2">${(iraAmount / 1000000).toFixed(1)}M</div>
+                          <p className="text-sm text-slate-300 mb-2">
+                            <strong>Strategy:</strong> Custom allocation
+                          </p>
+                          <p className="text-xs text-yellow-400 mb-4">
+                            ⚡ Different from Roth IRA
+                          </p>
+                          
+                          {/* Traditional IRA specific allocations would go here */}
+                          <div className="text-center text-slate-400 text-sm py-8">
+                            Traditional IRA allocations
+                          </div>
+                        </div>
+
+                        {/* ROTH IRA */}
+                        <div className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 rounded-lg p-6 border border-cyan-500/30">
+                          <h3 className="text-xl font-semibold mb-4 text-cyan-400">
+                            Roth IRA
+                          </h3>
+                          <div className="text-2xl font-bold mb-2">${(rothAmount / 1000000).toFixed(1)}M</div>
+                          <p className="text-sm text-slate-300 mb-2">
+                            <strong>Strategy:</strong> Custom allocation
+                          </p>
+                          <p className="text-xs text-cyan-400 mb-4">
+                            🎯 Different from Traditional IRA
+                          </p>
+                          
+                          {/* Roth IRA specific allocations would go here */}
+                          <div className="text-center text-slate-400 text-sm py-8">
+                            Roth IRA allocations
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  );
+                }
+              })()}
 
               {/* IRA REBALANCING STRATEGY */}
               <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-600/30 rounded-lg p-4">
-                <h4 className="font-semibold text-purple-400 mb-3">📊 IRA Rebalancing Strategy</h4>
+                <h4 className="font-semibold text-purple-400 mb-3">📊 Tax-Advantaged Account Strategy</h4>
                 <div className="text-sm text-slate-300 space-y-2">
-                  <p><strong>Frequency:</strong> Semi-annual reviews (June & December)</p>
-                  <p><strong>Why more frequent than taxable?</strong> No tax consequences in IRA = can rebalance aggressively</p>
+                  <p><strong>Rebalancing Frequency:</strong> Semi-annual reviews (June & December)</p>
+                  <p><strong>Why more frequent than taxable?</strong> No tax consequences in IRA/Roth = can rebalance aggressively</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                    <div className="bg-slate-800/50 rounded p-3">
+                      <div className="font-semibold mb-2 text-purple-400">Traditional IRA:</div>
+                      <ul className="space-y-1 text-xs">
+                        <li>• Being converted to Roth over {continueAfterRMD ? '20' : '14'} years</li>
+                        <li>• Growth-focused (70-90% equities)</li>
+                        <li>• Tax-inefficient assets (REITs, bonds)</li>
+                        <li>• Subject to RMDs after age 73</li>
+                      </ul>
+                    </div>
+                    <div className="bg-slate-800/50 rounded p-3">
+                      <div className="font-semibold mb-2 text-cyan-400">Roth IRA:</div>
+                      <ul className="space-y-1 text-xs">
+                        <li>• Tax-free growth forever</li>
+                        <li>• Same allocation as Traditional</li>
+                        <li>• No RMDs ever</li>
+                        <li>• Ideal for high-growth assets</li>
+                      </ul>
+                    </div>
+                  </div>
                   
                   <div className="bg-slate-800/50 rounded p-3 mt-2">
                     <div className="font-semibold mb-2">Regime-Based Adjustments:</div>
@@ -1336,7 +1611,7 @@ const PortfolioStrategyDashboard = () => {
                   
                   <div className="bg-yellow-900/20 border border-yellow-600/30 rounded p-3 mt-2">
                     <div className="font-semibold mb-1 text-yellow-400">⚠️ Key Principle:</div>
-                    <p className="text-xs">Even in crisis, IRA stays <strong>growth-focused</strong> (70%+ equities) because you won't touch this money for 14+ years. Short-term volatility doesn't matter.</p>
+                    <p className="text-xs">Even in crisis, tax-advantaged accounts stay <strong>growth-focused</strong> (70%+ equities) because you won't touch this money for 14+ years. Short-term volatility doesn't matter.</p>
                   </div>
                 </div>
               </div>
@@ -1357,25 +1632,35 @@ const PortfolioStrategyDashboard = () => {
 
               <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
                 <h4 className="font-semibold text-blue-400 mb-2">Asset Location Strategy</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-300">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-slate-300">
                   <div>
-                    <div className="font-semibold mb-2">Taxable Account (Tax-Efficient):</div>
+                    <div className="font-semibold mb-2 text-green-400">Taxable Account:</div>
                     <ul className="space-y-1 text-xs">
-                      <li>✓ High dividend ETFs (qualified dividends)</li>
+                      <li>✓ High dividend ETFs (qualified)</li>
                       <li>✓ Dividend growth stocks</li>
-                      <li>✓ International developed (foreign tax credit)</li>
+                      <li>✓ International (foreign tax credit)</li>
                       <li>✓ Value stocks (tax-efficient)</li>
-                      <li>✓ Gold (no dividends, only capital gains)</li>
+                      <li>✓ Gold (only capital gains)</li>
                     </ul>
                   </div>
                   <div>
-                    <div className="font-semibold mb-2">IRA Account (Tax-Inefficient):</div>
+                    <div className="font-semibold mb-2 text-purple-400">Traditional IRA:</div>
                     <ul className="space-y-1 text-xs">
-                      <li>✓ REITs (ordinary income distributions)</li>
-                      <li>✓ Emerging markets (withholding taxes)</li>
+                      <li>✓ REITs (ordinary income)</li>
+                      <li>✓ Emerging markets</li>
                       <li>✓ Momentum (high turnover)</li>
                       <li>✓ TIPS (phantom income)</li>
-                      <li>✓ Commodities (tax-inefficient)</li>
+                      <li>✓ Bonds & commodities</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <div className="font-semibold mb-2 text-cyan-400">Roth IRA:</div>
+                    <ul className="space-y-1 text-xs">
+                      <li>✓ High-growth assets</li>
+                      <li>✓ Maximum appreciation potential</li>
+                      <li>✓ Tax-free forever</li>
+                      <li>✓ No RMDs</li>
+                      <li>✓ Best for long-term holds</li>
                     </ul>
                   </div>
                 </div>
@@ -1387,11 +1672,13 @@ const PortfolioStrategyDashboard = () => {
                   <li>• <strong>NEVER</strong> hold REITs (VNQ) in taxable - distributions taxed as ordinary income</li>
                   <li>• <strong>ALWAYS</strong> hold high-dividend ETFs (SCHD, VYM) in taxable - qualified dividend treatment</li>
                   <li>• Foreign stocks (VEA) in taxable allows foreign tax credit</li>
-                  <li>• After Roth conversion complete, move growth assets to Roth for tax-free gains</li>
+                  <li>• After Roth conversion complete, Roth holds highest-growth assets for tax-free gains</li>
+                  <li>• Roth has NO required minimum distributions - can grow tax-free indefinitely</li>
                 </ul>
               </div>
             </div>
           )}
+
 
           {activeTab === 'alpha' && (
             <div className="space-y-6">
