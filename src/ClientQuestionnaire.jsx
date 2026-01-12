@@ -636,7 +636,7 @@ const ClientQuestionnaire = ({ onComplete }) => {
               onChange={(e) => updateField('riskTolerance', e.target.value)}
               className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white"
             >
-              <option value="conservative">Conservative (Stability > Growth)</option>
+              <option value="conservative">Conservative (Stability &gt; Growth)</option>
               <option value="moderate">Moderate (Balanced)</option>
               <option value="moderately-aggressive">Moderately Aggressive (Growth focus)</option>
               <option value="aggressive">Aggressive (Maximum growth)</option>

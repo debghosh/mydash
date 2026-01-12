@@ -4,6 +4,7 @@ import ClientQuestionnaire from './ClientQuestionnaire';
 import { CLIENT_PERSONAS } from './client-personas';
 import { generateRecommendations } from './recommendation-engine';
 import calculateProductionIncomeProjection from './production-income-calculator';
+import { ETF_UNIVERSE } from './data';
 
 
 const PortfolioStrategyDashboard = () => {
@@ -57,7 +58,7 @@ const PortfolioStrategyDashboard = () => {
       volatility: 'High (VIX 20-30)',
       inflation: 'Sticky (3-4%)',
       sentiment: 'Mixed/Uncertain',
-      indicators: 'S&P ±5%, VIX >20, CPI stubborn, Fed policy unclear',
+      indicators: 'S&P ±5%, VIX &gt;20, CPI stubborn, Fed policy unclear',
       color: 'orange'
     },
     grind: {
@@ -74,10 +75,10 @@ const PortfolioStrategyDashboard = () => {
       name: 'Crisis',
       description: 'Bear market + High volatility + Risk-off + Flight to safety',
       trend: 'Down',
-      volatility: 'High (VIX >30)',
+      volatility: 'High (VIX &gt;30)',
       inflation: 'Variable',
       sentiment: 'Risk-Off',
-      indicators: 'S&P down >10%, VIX >30, credit spreads widening, recession fears',
+      indicators: 'S&P down &gt;10%, VIX &gt;30, credit spreads widening, recession fears',
       color: 'red'
     }
   };
@@ -322,23 +323,17 @@ const PortfolioStrategyDashboard = () => {
     }
   };
 
-  // ETF Details
-  const etfDetails = [
-    { ticker: 'VOO', name: 'Vanguard S&P 500', category: 'Core', yield: 1.3, expense: 0.03 },
-    { ticker: 'SCHD', name: 'Schwab US Dividend Equity', category: 'Income', yield: 3.8, expense: 0.06 },
-    { ticker: 'VIG', name: 'Vanguard Dividend Appreciation', category: 'Quality', yield: 1.7, expense: 0.06 },
-    { ticker: 'VYM', name: 'Vanguard High Dividend Yield', category: 'Income', yield: 2.4, expense: 0.06 },
-    { ticker: 'QUAL', name: 'iShares MSCI USA Quality', category: 'Quality', yield: 1.5, expense: 0.15 },
-    { ticker: 'VTV', name: 'Vanguard Value', category: 'Value', yield: 2.3, expense: 0.04 },
-    { ticker: 'USMV', name: 'iShares MSCI USA Min Vol', category: 'Low Vol', yield: 1.8, expense: 0.15 },
-    { ticker: 'MTUM', name: 'iShares MSCI USA Momentum', category: 'Momentum', yield: 0.8, expense: 0.15 },
-    { ticker: 'VBR', name: 'Vanguard Small Cap Value', category: 'Small Cap', yield: 2.0, expense: 0.07 },
-    { ticker: 'BND', name: 'Vanguard Total Bond', category: 'Bonds', yield: 4.2, expense: 0.03 },
-    { ticker: 'GLD', name: 'SPDR Gold Shares', category: 'Gold', yield: 0, expense: 0.40 },
-    { ticker: 'VEA', name: 'Vanguard FTSE Developed', category: 'International', yield: 3.2, expense: 0.05 },
-    { ticker: 'VWO', name: 'Vanguard FTSE Emerging', category: 'International', yield: 3.5, expense: 0.08 },
-    { ticker: 'VNQ', name: 'Vanguard Real Estate', category: 'Alternatives', yield: 4.2, expense: 0.12 }
-  ];
+  // ETF Details - Dynamic from ETF_UNIVERSE
+  const etfDetails = useMemo(() => {
+    return Object.values(ETF_UNIVERSE).map(etf => ({
+      ticker: etf.symbol,
+      name: etf.name,
+      category: etf.category,
+      yield: etf.yield || 0,
+      expense: etf.expense,
+      taxStatus: etf.taxEfficiency
+    }));
+  }, []);
 
   // Alpha sources calculation
   const calculateAlpha = () => {
@@ -3133,10 +3128,12 @@ const PortfolioStrategyDashboard = () => {
                         </td>
                         <td className="p-3 text-right">{etf.expense.toFixed(2)}%</td>
                         <td className="p-3">
-                          {etf.category === 'Alternatives' ? (
-                            <span className="text-yellow-400">IRA Only</span>
-                          ) : (
+                          {etf.taxStatus === 'high' ? (
                             <span className="text-green-400">Taxable OK</span>
+                          ) : etf.taxStatus === 'medium' ? (
+                            <span className="text-yellow-400">Consider IRA</span>
+                          ) : (
+                            <span className="text-red-400">IRA Only</span>
                           )}
                         </td>
                       </tr>
@@ -3617,7 +3614,7 @@ Example:
                   <div>
                     <h4 className="font-semibold text-green-400 mb-2">Capital Gains Management</h4>
                     <ul className="space-y-1 text-slate-300">
-                      <li>• Hold investments >1 year (15-20% vs 24-37%)</li>
+                      <li>• Hold investments &gt;1 year (15-20% vs 24-37%)</li>
                       <li>• Donate appreciated stock (avoid cap gains + deduction)</li>
                       <li>• Use tax-loss harvesting strategically</li>
                       <li>• Consider 0% cap gains bracket if income allows</li>

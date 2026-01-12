@@ -6,31 +6,14 @@
 // =============================================================================
 
 import React, { useState, useMemo } from 'react';
-import { ETF_UNIVERSE, FACTOR_GROUPS } from '../../data';
+import { ETF_DATABASE, ETF_UNIVERSE } from '../../data';
 
 const ETFSelector = ({ currentPortfolio, onAddETF, onShowDetails }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   
-  // Organize ETFs by category
-  const etfsByCategory = useMemo(() => {
-    const categories = {};
-    
-    Object.values(ETF_UNIVERSE).forEach(etf => {
-      const category = etf.category;
-      if (!categories[category]) {
-        categories[category] = [];
-      }
-      categories[category].push(etf);
-    });
-    
-    // Sort ETFs within each category by symbol
-    Object.keys(categories).forEach(category => {
-      categories[category].sort((a, b) => a.symbol.localeCompare(b.symbol));
-    });
-    
-    return categories;
-  }, []);
+  // ETF_DATABASE is already organized by category
+  const etfsByCategory = ETF_DATABASE;
   
   // Filter ETFs based on search
   const filteredCategories = useMemo(() => {
@@ -106,7 +89,7 @@ const ETFSelector = ({ currentPortfolio, onAddETF, onShowDetails }) => {
       </div>
       
       {/* ETF Grid by Category */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto pr-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pr-2">
         {Object.entries(filteredCategories).map(([category, etfs]) => (
           <div key={category} className="bg-gray-50 rounded-lg p-4">
             <h3 className="font-semibold text-gray-700 text-sm mb-3 border-b border-gray-200 pb-2">
