@@ -280,15 +280,61 @@ export const getMarginalTaxRate = (taxableIncome) => {
 };
 
 // =============================================================================
+// ALIASES FOR BACKWARD COMPATIBILITY
+// =============================================================================
+/**
+ * Aliases for components that use old naming conventions
+ * Create structured objects that match expected format
+ */
+
+// Convert array structure to object with married/single properties
+// Components expect: TAX_BRACKETS_2024.married[rate] = threshold
+const createTaxBracketObject = (brackets) => {
+  const obj = {};
+  brackets.forEach(({ limit, rate }) => {
+    obj[rate.toString()] = limit;
+  });
+  return obj;
+};
+
+export const TAX_BRACKETS_2024 = {
+  single: createTaxBracketObject(FEDERAL_TAX_BRACKETS_2026),
+  married: {
+    // Married filing jointly brackets (approximately double single thresholds)
+    '0.10': 23200,
+    '0.12': 94300,
+    '0.22': 201050,
+    '0.24': 383900,
+    '0.32': 487450,
+    '0.35': 731200,
+    '0.37': Infinity
+  }
+};
+
+export const TAX_BRACKETS = TAX_BRACKETS_2024; // Generic alias
+
+// Convert IRMAA structure to match component expectations
+// Components expect: .magiLimit, .partB, .partD properties
+export const IRMAA_THRESHOLDS = IRMAA_THRESHOLDS_SINGLE.map(tier => ({
+  magiLimit: tier.limit,
+  partB: 174.70 + (tier.surcharge / 12), // Base Part B + monthly surcharge
+  partD: 81.60 + (tier.surcharge / 24), // Estimated Part D + proportional surcharge
+  description: tier.description
+}));
+
+// =============================================================================
 // EXPORT ALL
 // =============================================================================
 export default {
   FEDERAL_TAX_BRACKETS_2026,
+  TAX_BRACKETS_2024, // Alias
+  TAX_BRACKETS, // Alias
   STANDARD_DEDUCTION_2026,
   RMD_RATES,
   RMD_START_AGE,
   IRMAA_THRESHOLDS_SINGLE,
   IRMAA_THRESHOLDS_MARRIED,
+  IRMAA_THRESHOLDS, // Alias
   getIRMAASurcharge,
   LONG_TERM_CAP_GAINS_BRACKETS,
   QCD_ANNUAL_LIMIT,

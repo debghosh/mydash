@@ -182,6 +182,18 @@ export const usePortfolioBuilder = (options = {}) => {
   const [selectedETF, setSelectedETF] = useState(null);
   
   // =============================================================================
+  // HELPER FUNCTIONS (Must be before usage)
+  // =============================================================================
+  
+  const portfolioToAllocation = (portfolio) => {
+    const allocation = {};
+    portfolio.forEach(holding => {
+      allocation[holding.symbol] = holding.weight;
+    });
+    return allocation;
+  };
+  
+  // =============================================================================
   // INITIALIZATION
   // =============================================================================
   
@@ -509,14 +521,6 @@ export const usePortfolioBuilder = (options = {}) => {
     setPortfolioTags(data.tags || []);
     setPortfolioCreatedAt(data.createdAt || new Date().toISOString());
     setPortfolioTemplateId(data.templateId || null);
-  };
-  
-  const portfolioToAllocation = (portfolio) => {
-    const allocation = {};
-    portfolio.forEach(holding => {
-      allocation[holding.symbol] = holding.weight;
-    });
-    return allocation;
   };
   
   // =============================================================================

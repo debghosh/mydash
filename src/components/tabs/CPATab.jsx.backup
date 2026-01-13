@@ -1,0 +1,272 @@
+// =============================================================================
+// ALPHATIC - CPA RESOURCES TAB COMPONENT
+// =============================================================================
+// Tools and resources for tax professionals and CPAs
+// =============================================================================
+
+import React from 'react';
+import { formatCurrency, formatPercent } from '../../utils/formatters';
+import { TAX_BRACKETS_2024, IRMAA_THRESHOLDS, RMD_RATES } from '../../data/constants';
+
+const CPATab = ({ 
+  taxableAmount,
+  iraAmount,
+  rothAmount,
+  currentAge = 60
+}) => {
+  
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold mb-4">CPA Resources & Tax Reference</h2>
+
+      {/* Overview */}
+      <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-3 text-blue-400">For Tax Professionals</h3>
+        <p className="text-sm text-slate-300">
+          This tab provides quick reference materials for tax planning conversations with clients.
+          All calculations in Alphatic use current tax law (2024) with conservative assumptions.
+        </p>
+      </div>
+
+      {/* Tax Brackets */}
+      <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-600/30">
+        <h3 className="text-lg font-semibold mb-4 text-slate-200">2024 Tax Brackets (Married Filing Jointly)</h3>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-slate-600">
+              <tr className="text-left">
+                <th className="pb-2 text-slate-400">Rate</th>
+                <th className="pb-2 text-slate-400">Income Range</th>
+                <th className="pb-2 text-slate-400">Notes</th>
+              </tr>
+            </thead>
+            <tbody className="text-slate-300">
+              {Object.entries(TAX_BRACKETS_2024.married).map(([rate, threshold], index, array) => {
+                const ratePercent = parseFloat(rate) * 100;
+                const nextThreshold = array[index + 1]?.[1] || Infinity;
+                
+                return (
+                  <tr key={rate} className="border-b border-slate-700">
+                    <td className="py-3 font-semibold text-blue-400">{ratePercent}%</td>
+                    <td className="py-3">
+                      {formatCurrency(threshold)} - {
+                        nextThreshold === Infinity ? 
+                          'No limit' : 
+                          formatCurrency(nextThreshold - 1)
+                      }
+                    </td>
+                    <td className="py-3 text-xs text-slate-400">
+                      {ratePercent === 24 && 'Sweet spot for Roth conversions'}
+                      {ratePercent === 32 && 'Try to avoid this bracket'}
+                      {ratePercent === 37 && 'Highest marginal rate'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-4 p-3 bg-yellow-900/20 rounded border border-yellow-600/30">
+          <div className="text-xs text-slate-400">
+            <strong>Planning Strategy:</strong> Most clients benefit from converting to top of 24% bracket.
+            Going into 32% usually not worth it unless very high future tax risk.
+          </div>
+        </div>
+      </div>
+
+      {/* IRMAA Thresholds */}
+      <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-600/30">
+        <h3 className="text-lg font-semibold mb-4 text-slate-200">2024 IRMAA Thresholds (Medicare Surcharges)</h3>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-slate-600">
+              <tr className="text-left">
+                <th className="pb-2 text-slate-400">MAGI (Married)</th>
+                <th className="pb-2 text-slate-400">Part B Premium</th>
+                <th className="pb-2 text-slate-400">Part D Premium</th>
+                <th className="pb-2 text-slate-400">Annual Impact</th>
+              </tr>
+            </thead>
+            <tbody className="text-slate-300">
+              {IRMAA_THRESHOLDS.map((tier, index) => {
+                const partBMonthly = tier.partB;
+                const partDMonthly = tier.partD;
+                const annualCost = (partBMonthly + partDMonthly) * 12;
+                
+                return (
+                  <tr key={index} className="border-b border-slate-700">
+                    <td className="py-3">
+                      {tier.magiLimit === Infinity ? 
+                        `Over ${formatCurrency(IRMAA_THRESHOLDS[index - 1]?.magiLimit || 0)}` :
+                        `Up to ${formatCurrency(tier.magiLimit)}`
+                      }
+                    </td>
+                    <td className="py-3">{formatCurrency(partBMonthly)}/mo</td>
+                    <td className="py-3">{formatCurrency(partDMonthly)}/mo</td>
+                    <td className="py-3 font-semibold text-orange-400">
+                      {formatCurrency(annualCost)}/year
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-4 p-3 bg-red-900/20 rounded border border-red-600/30">
+          <div className="text-xs text-slate-400">
+            <strong>Critical Planning Point:</strong> IRMAA surcharges can cost $6K-$12K/year per couple.
+            Roth conversions before Medicare enrollment (age 65) avoid pushing MAGI over cliffs.
+          </div>
+        </div>
+      </div>
+
+      {/* RMD Rates */}
+      <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-600/30">
+        <h3 className="text-lg font-semibold mb-4 text-slate-200">Required Minimum Distribution (RMD) Rates</h3>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {Object.entries(RMD_RATES).map(([age, rate]) => (
+            <div key={age} className={`rounded p-3 ${
+              parseInt(age) === 73 ? 'bg-yellow-900/20 border border-yellow-600/30' : 'bg-slate-700/50'
+            }`}>
+              <div className="text-xs text-slate-400">Age {age}</div>
+              <div className="text-lg font-bold text-blue-400">{formatPercent(rate * 100)}</div>
+              <div className="text-xs text-slate-500 mt-1">
+                {parseInt(age) === 73 ? 'First RMD' : 'of balance'}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 p-3 bg-blue-900/20 rounded border border-blue-600/30">
+          <div className="text-xs text-slate-400">
+            <strong>RMD Formula:</strong> IRA Balance ÷ Life Expectancy Factor = Required Withdrawal.
+            Failure to take RMD results in 25% penalty (reduced from 50% under SECURE 2.0).
+          </div>
+        </div>
+      </div>
+
+      {/* Common Tax Planning Scenarios */}
+      <div className="bg-gradient-to-r from-slate-800/50 to-slate-700/50 rounded-lg p-6 border border-slate-600/30">
+        <h3 className="text-lg font-semibold mb-4 text-slate-200">Common Client Scenarios</h3>
+        
+        <div className="space-y-4">
+          <div className="bg-green-900/20 rounded p-4 border border-green-600/30">
+            <h4 className="font-semibold text-green-400 mb-2">Scenario 1: Early Retiree (Age 60-64)</h4>
+            <ul className="text-sm text-slate-300 space-y-1">
+              <li><strong>Goal:</strong> Convert Traditional IRA to Roth before Medicare (age 65)</li>
+              <li><strong>Strategy:</strong> Convert to top of 24% bracket annually (5-year window)</li>
+              <li><strong>Benefit:</strong> Lower MAGI after 65 = avoid IRMAA surcharges</li>
+              <li><strong>Tax Cost:</strong> ~24% now vs 32%+ later with RMDs</li>
+            </ul>
+          </div>
+
+          <div className="bg-purple-900/20 rounded p-4 border border-purple-600/30">
+            <h4 className="font-semibold text-purple-400 mb-2">Scenario 2: Age 65-72 (Pre-RMD)</h4>
+            <ul className="text-sm text-slate-300 space-y-1">
+              <li><strong>Goal:</strong> Complete Roth conversions before RMDs start at 73</li>
+              <li><strong>Strategy:</strong> Balance conversion amount vs IRMAA cliff ($206K MAGI)</li>
+              <li><strong>Benefit:</strong> No RMDs from Roth + lower future Medicare costs</li>
+              <li><strong>Tax Cost:</strong> 24% conversion tax vs 24-32% on RMDs + IRMAA</li>
+            </ul>
+          </div>
+
+          <div className="bg-blue-900/20 rounded p-4 border border-blue-600/30">
+            <h4 className="font-semibold text-blue-400 mb-2">Scenario 3: Age 73+ (RMD Phase)</h4>
+            <ul className="text-sm text-slate-300 space-y-1">
+              <li><strong>Goal:</strong> Minimize RMD-driven IRMAA surcharges</li>
+              <li><strong>Strategy:</strong> QCDs (Qualified Charitable Distributions) to reduce RMD</li>
+              <li><strong>Benefit:</strong> $105K/couple QCD lowers MAGI by up to $105K</li>
+              <li><strong>Tax Cost:</strong> None - QCD satisfies RMD without income recognition</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Tax Planning Checklist */}
+      <div className="bg-purple-900/20 border border-purple-600/30 rounded-lg p-4">
+        <h4 className="font-semibold text-purple-400 mb-3">✅ Year-End Tax Planning Checklist for CPAs</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-slate-300">
+          <div>
+            <div className="font-semibold mb-2">Q4 Actions (Before Dec 31):</div>
+            <ul className="space-y-1 text-xs list-disc list-inside">
+              <li>Harvest tax losses in taxable accounts</li>
+              <li>Execute Roth conversions (cannot undo)</li>
+              <li>Take RMDs if age 73+</li>
+              <li>Max 401(k) and IRA contributions</li>
+              <li>Consider QCDs for charitable intent</li>
+              <li>Review IRMAA projections for next year</li>
+            </ul>
+          </div>
+          <div>
+            <div className="font-semibold mb-2">Q1 Actions (Jan-Apr 15):</div>
+            <ul className="space-y-1 text-xs list-disc list-inside">
+              <li>Prior year IRA contributions (until Apr 15)</li>
+              <li>Prior year HSA contributions</li>
+              <li>Estimated tax payments Q1</li>
+              <li>Plan current year Roth conversions</li>
+              <li>Review bracket management strategy</li>
+              <li>File extension if needed (Oct 15)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Software Integration Notes */}
+      <div className="bg-slate-800/50 border border-slate-600/30 rounded-lg p-4">
+        <h4 className="font-semibold text-slate-200 mb-3">🔧 Integration with Tax Software</h4>
+        <div className="text-sm text-slate-300 space-y-2">
+          <p>
+            <strong>Alphatic Calculations:</strong> All projections use marginal tax rates with proper bracket stacking.
+            Conservative assumptions include 24% ordinary income, 15% LTCG, and 85-90% qualified dividends.
+          </p>
+          <p>
+            <strong>Export Capabilities:</strong> Portfolio data exports to CSV/Excel for import into tax planning software.
+            Roth conversion schedules can be adjusted in CPA software with actual client tax returns.
+          </p>
+          <p className="text-xs text-slate-400 mt-3">
+            <strong>Disclaimer:</strong> Alphatic projections are estimates. Actual tax liability determined by complete tax return
+            including all income sources, deductions, credits, and state taxes.
+          </p>
+        </div>
+      </div>
+
+      {/* Quick Reference Links */}
+      <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
+        <h4 className="font-semibold text-blue-400 mb-3">📚 Quick Reference Resources</h4>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+          <div className="bg-slate-700 rounded p-3">
+            <div className="font-semibold text-slate-200 mb-1">IRS Resources</div>
+            <ul className="text-xs text-slate-400 space-y-1">
+              <li>• Pub 590-A (IRA Contributions)</li>
+              <li>• Pub 590-B (IRA Distributions)</li>
+              <li>• Pub 17 (Your Federal Income Tax)</li>
+            </ul>
+          </div>
+          <div className="bg-slate-700 rounded p-3">
+            <div className="font-semibold text-slate-200 mb-1">Tax Forms</div>
+            <ul className="text-xs text-slate-400 space-y-1">
+              <li>• Form 1040 (Income Tax Return)</li>
+              <li>• Form 8606 (Nondeductible IRAs)</li>
+              <li>• Form 1099-R (Distributions)</li>
+            </ul>
+          </div>
+          <div className="bg-slate-700 rounded p-3">
+            <div className="font-semibold text-slate-200 mb-1">Planning Tools</div>
+            <ul className="text-xs text-slate-400 space-y-1">
+              <li>• RMD Calculator (IRS.gov)</li>
+              <li>• IRMAA Calculator (Medicare.gov)</li>
+              <li>• Tax Bracket Calculator</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CPATab;

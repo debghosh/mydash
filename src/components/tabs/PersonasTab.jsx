@@ -4,8 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import ClientQuestionnaire from '../ClientQuestionnaire';
-import { generateRecommendations } from '../recommendation-engine';
+import ClientQuestionnaire from '../../ClientQuestionnaire';
+import { generateRecommendations } from '../../recommendation-engine';
 
 export const PersonasTab = ({ 
   selectedClient,

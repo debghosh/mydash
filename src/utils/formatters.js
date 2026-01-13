@@ -417,11 +417,20 @@ export const formatDuration = (years) => {
 };
 
 // =============================================================================
+// ALIASES FOR BACKWARD COMPATIBILITY
+// =============================================================================
+/**
+ * Alias for formatPercentage (for backward compatibility)
+ */
+export const formatPercent = formatPercentage;
+
+// =============================================================================
 // EXPORT ALL
 // =============================================================================
 export default {
   formatCurrency,
   formatPercentage,
+  formatPercent, // Alias for formatPercentage
   formatLargeNumber,
   formatNumber,
   formatBasisPoints,

@@ -412,11 +412,20 @@ export const analyzeIRMAACliffs = (timeline) => {
 };
 
 // =============================================================================
+// ALIASES FOR BACKWARD COMPATIBILITY
+// =============================================================================
+/**
+ * Alias for calculateRothConversionTimeline
+ */
+export const calculateRothProjections = calculateRothConversionTimeline;
+
+// =============================================================================
 // EXPORT ALL
 // =============================================================================
 export default {
   CONVERSION_STRATEGIES,
   calculateRothConversionTimeline,
+  calculateRothProjections, // Alias
   summarizeRothConversionTimeline,
   compareRothStrategies,
   findOptimalConversionAmount,

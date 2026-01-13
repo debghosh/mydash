@@ -6,6 +6,31 @@ import { generateRecommendations } from './recommendation-engine';
 import calculateProductionIncomeProjection from './production-income-calculator';
 import { ETF_UNIVERSE } from './data';
 
+// Portfolio Builder
+import usePortfolioBuilder from './hooks/usePortfolioBuilder';
+import PortfolioBuilder from './components/portfolio/PortfolioBuilder';
+
+// Tab Components
+import {
+  OverviewTab,
+  AlphaTab,
+  EnhancedAnalysisTab,
+  AllocationTab,
+  MarketRegimesTab,
+  IncomeTab,
+  RothTab,
+  BacktestTab,
+  ComprehensiveBacktestTab,
+  TaxOptTab,
+  RebalancingTab,
+  CPATab,
+  PortfolioHealthTab
+} from './components/tabs';
+
+// Layout Components
+import Sidebar from './components/layout/Sidebar';
+
+
 
 const PortfolioStrategyDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -19,6 +44,23 @@ const PortfolioStrategyDashboard = () => {
   const [stateTaxRate, setStateTaxRate] = useState(5); // State income tax rate
   const [useConservativeEstimates, setUseConservativeEstimates] = useState(true); // 20% buffer for safety
   const [expectedGrowthRate, setExpectedGrowthRate] = useState(9); // 85% equities growth-focused = 9% realistic
+  
+  // Portfolio Builder State
+  const portfolioBuilder = usePortfolioBuilder({
+    initialTemplate: 'regime-goldilocks',
+    onPortfolioChange: (data) => {
+      console.log('Portfolio changed:', data.allocation);
+    },
+    autoSave: true
+  });
+  
+  // Extract portfolio state for tabs
+  const {
+    allocation: currentAllocation,
+    isValid: portfolioIsValid,
+    currentTemplate,
+    portfolioSummary
+  } = portfolioBuilder;
   
   // Personas state
   const [clientRecommendations, setClientRecommendations] = useState(null);
@@ -668,7 +710,7 @@ const PortfolioStrategyDashboard = () => {
   }, [taxableAmount, iraAmount, marketRegime, rebalanceFrequency]);
 
   const alpha = calculateAlpha();
-  const currentAllocation = allocations[marketRegime] || allocations.uncertainty;
+  const regimeAllocation = allocations[marketRegime] || allocations.uncertainty; // OLD: kept for -OLD tab sections
 
   // Roth conversion summary calculations (avoid arrow functions in JSX)
   const rothTotalCost = rothTimeline.reduce((sum, t) => sum + t.allInCost, 0);
@@ -679,8 +721,8 @@ const PortfolioStrategyDashboard = () => {
   const rothTotalRMD = rothTimeline.reduce((sum, t) => sum + t.rmd, 0);
   const rothTotalIRMAA = rothTimeline.reduce((sum, t) => sum + t.irmaa, 0);
 
-  // Prepare data for charts
-  const allocationData = Object.entries(currentAllocation).map(([name, value]) => ({
+  // Prepare data for charts (for -OLD sections)
+  const allocationData = Object.entries(regimeAllocation).map(([name, value]) => ({
     name,
     value: Math.round(value * 100),
     amount: Math.round((taxableAmount + iraAmount) * value)
@@ -710,8 +752,41 @@ const PortfolioStrategyDashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
+      {/* Sidebar */}
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        marketRegime={marketRegime}
+        onMarketRegimeChange={setMarketRegime}
+        riskTolerance={riskTolerance}
+        onRiskToleranceChange={setRiskTolerance}
+        taxableAmount={taxableAmount}
+        onTaxableAmountChange={setTaxableAmount}
+        iraAmount={iraAmount}
+        onIraAmountChange={setIraAmount}
+        rothAmount={rothAmount}
+        onRothAmountChange={setRothAmount}
+        capitalGainsRate={capitalGainsRate}
+        onCapitalGainsRateChange={setCapitalGainsRate}
+        stateTaxRate={stateTaxRate}
+        onStateTaxRateChange={setStateTaxRate}
+        conversionAmount={conversionAmount}
+        onConversionAmountChange={setConversionAmount}
+        frontLoadConversions={frontLoadConversions}
+        onFrontLoadConversionsChange={setFrontLoadConversions}
+        continueAfterRMD={continueAfterRMD}
+        onContinueAfterRMDChange={setContinueAfterRMD}
+        rebalanceFrequency={rebalanceFrequency}
+        onRebalanceFrequencyChange={setRebalanceFrequency}
+        useConservativeEstimates={useConservativeEstimates}
+        onUseConservativeEstimatesChange={setUseConservativeEstimates}
+        expectedGrowthRate={expectedGrowthRate}
+        onExpectedGrowthRateChange={setExpectedGrowthRate}
+      />
+      
+      {/* Main Content Area */}
+      <div className="ml-72 p-6">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
@@ -746,140 +821,6 @@ const PortfolioStrategyDashboard = () => {
             <div className="text-2xl font-bold text-red-400">${(incomeProjection.totalAnnualTaxes / 1000).toFixed(0)}K</div>
             <div className="text-xs text-slate-400">All sources</div>
           </div>
-        </div>
-
-        {/* Controls */}
-        <div className="bg-slate-800 rounded-lg p-6 mb-8 border border-slate-700">
-          <h3 className="text-xl font-semibold mb-4">Scenario Controls</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div>
-              <label className="block text-sm text-slate-300 mb-2">Market Regime (Comprehensive)</label>
-              <select 
-                value={marketRegime}
-                onChange={(e) => setMarketRegime(e.target.value)}
-                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm"
-              >
-                <option value="goldilocks">Goldilocks (Bull + Low Vol + Low Inflation)</option>
-                <option value="boom">Boom (Bull + Rising Vol + Rising Inflation)</option>
-                <option value="uncertainty">Uncertainty (Sideways + High Vol + Sticky Inflation) ★</option>
-                <option value="grind">Sideways Grind (Range + Low Vol + Stable Inflation)</option>
-                <option value="crisis">Crisis (Bear + High Vol + Risk-Off)</option>
-              </select>
-              <div className="text-xs text-slate-400 mt-1">
-                {regimeDefinitions[marketRegime]?.indicators}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm text-slate-300 mb-2">Rebalancing Frequency</label>
-              <select 
-                value={rebalanceFrequency}
-                onChange={(e) => setRebalanceFrequency(e.target.value)}
-                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white"
-              >
-                <option value="monthly">Monthly (NOT Recommended)</option>
-                <option value="quarterly">Quarterly (Optimal)</option>
-                <option value="annual">Annual</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm text-slate-300 mb-2">Annual Roth Conversion</label>
-              <input 
-                type="range"
-                min="100000"
-                max="400000"
-                step="25000"
-                value={conversionAmount}
-                onChange={(e) => setConversionAmount(parseInt(e.target.value))}
-                className="w-full"
-              />
-              <div className="text-center mt-1">${(conversionAmount / 1000).toFixed(0)}K</div>
-            </div>
-            <div>
-              <label className="block text-sm text-slate-300 mb-2">Long-Term Cap Gains Rate</label>
-              <select 
-                value={capitalGainsRate}
-                onChange={(e) => setCapitalGainsRate(parseInt(e.target.value))}
-                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white"
-              >
-                <option value="0">0% (Low Income)</option>
-                <option value="15">15% (Most People)</option>
-                <option value="20">20% (High Income)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm text-slate-300 mb-2">State Income Tax Rate</label>
-              <input 
-                type="range"
-                min="0"
-                max="13"
-                step="0.5"
-                value={stateTaxRate}
-                onChange={(e) => setStateTaxRate(parseFloat(e.target.value))}
-                className="w-full"
-              />
-              <div className="text-center mt-1">
-                <span className="font-bold">{stateTaxRate.toFixed(1)}%</span>
-                <span className="text-xs text-slate-400 ml-2">
-                  {stateTaxRate === 0 && '(No state tax: FL, TX, NV, WA, etc.)'}
-                  {stateTaxRate > 0 && stateTaxRate <= 5 && '(Low-tax state)'}
-                  {stateTaxRate > 5 && stateTaxRate <= 8 && '(Medium-tax state)'}
-                  {stateTaxRate > 8 && '(High-tax state: CA, NY, NJ, etc.)'}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="mt-4 space-y-2">
-            <label className="flex items-center text-sm text-slate-300">
-              <input 
-                type="checkbox"
-                checked={useConservativeEstimates}
-                onChange={(e) => setUseConservativeEstimates(e.target.checked)}
-                className="mr-2"
-              />
-              <span>
-                <strong className="text-green-400">Use Conservative Estimates (+20% buffer)?</strong> Recommended for real money decisions
-              </span>
-            </label>
-            <label className="flex items-center text-sm text-slate-300">
-              <input 
-                type="checkbox"
-                checked={continueAfterRMD}
-                onChange={(e) => setContinueAfterRMD(e.target.checked)}
-                className="mr-2"
-              />
-              Continue Roth conversions after age 73 (RMDs)?
-            </label>
-            <label className="flex items-center text-sm text-slate-300">
-              <input 
-                type="checkbox"
-                checked={frontLoadConversions}
-                onChange={(e) => setFrontLoadConversions(e.target.checked)}
-                className="mr-2"
-              />
-              <span>
-                <strong className="text-yellow-400">Front-load conversions?</strong> (Higher amounts early, taper down - better if expecting higher tax rates)
-              </span>
-            </label>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto">
-          {['personas', 'overview', 'accounts', 'alpha', 'allocation', 'income', 'tax-optimization', 'roth', 'rebalancing', 'etfs', 'cpa-review'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all whitespace-nowrap ${
-                activeTab === tab 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              {tab === 'tax-optimization' ? 'Tax Optimization' : 
-               tab === 'cpa-review' ? 'CPA Review' : 
-               tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
         </div>
 
         {/* Content Area */}
@@ -1174,7 +1115,40 @@ const PortfolioStrategyDashboard = () => {
               )}
             </div>
           )}
+
+          {/* PORTFOLIO BUILDER TAB */}
+          {activeTab === 'portfolio-builder' && (
+            <div className="space-y-6">
+              <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4 mb-6">
+                <h2 className="text-2xl font-bold mb-2 text-blue-400">🎯 Portfolio Builder</h2>
+                <p className="text-sm text-slate-300">
+                  Create your custom portfolio allocation. Choose from 13 pre-built templates or build from scratch with all 63 ETFs.
+                  Once built, all dashboard tabs automatically update with your allocation.
+                </p>
+                {portfolioIsValid && (
+                  <div className="mt-3 p-3 bg-green-900/20 border border-green-600/30 rounded">
+                    <div className="text-sm text-green-400 font-semibold">
+                      ✅ Portfolio Complete ({Object.keys(currentAllocation).length} ETFs) - All tabs will auto-update!
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <PortfolioBuilder {...portfolioBuilder} />
+            </div>
+          )}
+
           {activeTab === 'overview' && (
+            <OverviewTab
+              allocation={currentAllocation}
+              marketRegime={marketRegime}
+              taxableAmount={taxableAmount}
+              iraAmount={iraAmount}
+              rothAmount={rothAmount}
+              isValid={portfolioIsValid}
+            />
+          )}
+          {activeTab === 'overview-OLD' && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold mb-4">Portfolio Overview</h2>
               
@@ -1237,9 +1211,9 @@ const PortfolioStrategyDashboard = () => {
             </div>
           )}
 
-          {activeTab === 'accounts' && (
+          {activeTab === 'portfolio' && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold mb-4">Account-Specific Allocations</h2>
+              <h2 className="text-2xl font-bold mb-4">Portfolio Allocation by Account Type</h2>
               
               {/* Check if Traditional IRA and Roth IRA use the same allocation strategy */}
               {(() => {
@@ -1680,7 +1654,32 @@ const PortfolioStrategyDashboard = () => {
           )}
 
 
+          {/* ENHANCED ANALYSIS TAB - PHASE 2 */}
+          {activeTab === 'analysis' && (
+            <EnhancedAnalysisTab
+              allocation={currentAllocation}
+              marketRegime={marketRegime}
+              taxableAmount={taxableAmount}
+              iraAmount={iraAmount}
+              rothAmount={rothAmount}
+              isValid={portfolioIsValid}
+            />
+          )}
+
+          {/* ALPHA TAB - ORIGINAL (Legacy) */}
           {activeTab === 'alpha' && (
+            <AlphaTab
+              allocation={currentAllocation}
+              marketRegime={marketRegime}
+              taxableAmount={taxableAmount}
+              iraAmount={iraAmount}
+              rothAmount={rothAmount}
+              isValid={portfolioIsValid}
+            />
+          )}
+
+          {/* OLD ALPHA TAB - KEPT FOR REFERENCE */}
+          {activeTab === 'alpha-OLD' && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold mb-4">Alpha Generation Breakdown</h2>
               
@@ -1754,7 +1753,29 @@ const PortfolioStrategyDashboard = () => {
             </div>
           )}
 
-          {activeTab === 'allocation' && (
+          {/* ALLOCATION TAB - COMPONENTIZED */}
+          {activeTab === 'recommendations' && (
+            <AllocationTab
+              allocation={currentAllocation}
+              marketRegime={marketRegime}
+              selectedTemplate={currentTemplate}
+              isValid={portfolioIsValid}
+            />
+          )}
+
+          {/* MARKET REGIMES TAB */}
+          {activeTab === 'market-regimes' && (
+            <MarketRegimesTab
+              marketRegime={marketRegime}
+              setMarketRegime={setMarketRegime}
+              allocations={allocations}
+              regimeDefinitions={regimeDefinitions}
+              factorPerformance={factorPerformance}
+            />
+          )}
+
+          {/* OLD ALLOCATION TAB - KEPT FOR REFERENCE */}
+          {activeTab === 'allocation-OLD' && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold mb-4">Allocation by Market Regime</h2>
               
@@ -1824,7 +1845,28 @@ const PortfolioStrategyDashboard = () => {
 
 
 
-{activeTab === 'income' && (
+          {/* INCOME TAB - COMPONENTIZED */}
+          {activeTab === 'income' && (
+            <IncomeTab
+              allocation={currentAllocation}
+              taxableAmount={taxableAmount}
+              iraAmount={iraAmount}
+              rothAmount={rothAmount}
+              conversionAmount={conversionAmount}
+              frontLoadConversions={frontLoadConversions}
+              continueAfterRMD={continueAfterRMD}
+              expectedGrowthRate={expectedGrowthRate}
+              capitalGainsRate={capitalGainsRate}
+              stateTaxRate={0}
+              useConservativeEstimates={useConservativeEstimates}
+              marketRegime={marketRegime}
+              taxableAllocations={taxableAllocations}
+              isValid={portfolioIsValid}
+            />
+          )}
+
+          {/* OLD INCOME TAB - KEPT FOR REFERENCE */}
+          {activeTab === 'income-OLD' && (
   <div className="space-y-6">
     <div className="flex justify-between items-center">
       <h2 className="text-2xl font-bold">Complete Lifetime Wealth Projection (Age 60 → 90)</h2>
@@ -2036,7 +2078,40 @@ const PortfolioStrategyDashboard = () => {
 )}
 
 
-{activeTab === 'tax-optimization' && (
+          {/* BACKTEST TAB - COMPREHENSIVE (Phase 2) */}
+          {activeTab === 'backtest' && (
+            <ComprehensiveBacktestTab
+              allocation={currentAllocation}
+              marketRegime={marketRegime}
+              taxableAmount={taxableAmount}
+              iraAmount={iraAmount}
+              rothAmount={rothAmount}
+              isValid={portfolioIsValid}
+            />
+          )}
+
+          {/* OLD BACKTEST TAB - Legacy */}
+          {activeTab === 'backtest-old' && (
+            <BacktestTab
+              allocation={currentAllocation}
+              marketRegime={marketRegime}
+              isValid={portfolioIsValid}
+            />
+          )}
+
+          {/* TAX OPTIMIZATION TAB - COMPONENTIZED */}
+          {activeTab === 'tax-optimization' && (
+            <TaxOptTab
+              allocation={currentAllocation}
+              taxableAmount={taxableAmount}
+              iraAmount={iraAmount}
+              rothAmount={rothAmount}
+              isValid={portfolioIsValid}
+            />
+          )}
+
+          {/* OLD TAX OPTIMIZATION TAB - KEPT FOR REFERENCE */}
+          {activeTab === 'tax-optimization-OLD' && (
   <div className="space-y-6">
     <div className="flex justify-between items-center">
       <h2 className="text-3xl font-bold">Tax Optimization Strategies</h2>
@@ -3008,7 +3083,22 @@ const PortfolioStrategyDashboard = () => {
     </div>
   </div>
 )}
+          {/* ROTH TAB - COMPONENTIZED */}
           {activeTab === 'roth' && (
+            <RothTab
+              iraAmount={iraAmount}
+              rothAmount={rothAmount}
+              taxableAmount={taxableAmount}
+              currentAge={60}
+              continueAfterRMD={continueAfterRMD}
+              frontLoadConversions={frontLoadConversions}
+              conversionAmount={conversionAmount}
+              capitalGainsRate={capitalGainsRate}
+            />
+          )}
+
+          {/* OLD ROTH TAB - KEPT FOR REFERENCE */}
+          {activeTab === 'roth-OLD' && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold mb-4">Roth Conversion Strategy</h2>
               
@@ -3286,7 +3376,33 @@ const PortfolioStrategyDashboard = () => {
             </div>
           )}
 
+          {/* REBALANCING TAB - COMPONENTIZED */}
           {activeTab === 'rebalancing' && (
+            <RebalancingTab
+              allocation={currentAllocation}
+              marketRegime={marketRegime}
+              taxableAmount={taxableAmount}
+              iraAmount={iraAmount}
+              rothAmount={rothAmount}
+              isValid={portfolioIsValid}
+            />
+          )}
+
+          {/* PORTFOLIO HEALTH TAB - MERGES RECOMMENDATIONS + REBALANCING */}
+          {activeTab === 'portfolio-health' && (
+            <PortfolioHealthTab
+              allocation={currentAllocation}
+              taxableAmount={taxableAmount}
+              iraAmount={iraAmount}
+              rothAmount={rothAmount}
+              isValid={portfolioIsValid}
+              marketRegime={marketRegime}
+              taxableAllocations={taxableAllocations}
+            />
+          )}
+
+          {/* OLD REBALANCING TAB - KEPT FOR REFERENCE */}
+          {activeTab === 'rebalancing-OLD' && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold mb-4">Rebalancing Strategy Analysis</h2>
               
@@ -3505,7 +3621,17 @@ const PortfolioStrategyDashboard = () => {
             </div>
           )}
 
+          {/* CPA REVIEW TAB - COMPONENTIZED */}
           {activeTab === 'cpa-review' && (
+            <CPATab
+              taxableAmount={taxableAmount}
+              iraAmount={iraAmount}
+              rothAmount={rothAmount}
+            />
+          )}
+
+          {/* OLD CPA REVIEW TAB - KEPT FOR REFERENCE */}
+          {activeTab === 'cpa-review-OLD' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">CPA Review & Follow-Up Checklist</h2>
@@ -3937,7 +4063,7 @@ Example:
         {/* Footer */}
         <div className="mt-8 text-center text-slate-400 text-sm">
           <p>Interactive Portfolio Strategy Dashboard • Based on Professional Investment Research</p>
-          <p className="mt-2">Adjust parameters above to see how different scenarios affect your portfolio performance and alpha generation</p>
+          <p className="mt-2">Adjust parameters in the sidebar to see how different scenarios affect your portfolio</p>
         </div>
       </div>
     </div>
