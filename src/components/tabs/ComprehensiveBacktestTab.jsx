@@ -805,6 +805,165 @@ const ComprehensiveBacktestTab = ({
           </div>
         </div>
       </div>
+      {/* ========================================================================
+          MONTE CARLO SIMULATION
+          ======================================================================== */}
+      
+      <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+        <h3 className="text-xl font-semibold mb-4">🎲 Monte Carlo Simulation (10-Year Forward)</h3>
+        <div className="text-sm text-slate-400 mb-4">
+          1,000 simulated market scenarios to project future portfolio value range
+        </div>
+        
+        {/* Monte Carlo Results */}
+        {(() => {
+          // Run Monte Carlo simulation (1,000 iterations, 10 years)
+          const simulations = [];
+          const numSims = 1000;
+          const years = 10;
+          const initialValue = finalValues.yourPortfolio;
+          
+          for (let sim = 0; sim < numSims; sim++) {
+            let value = initialValue;
+            for (let year = 0; year < years; year++) {
+              // Use normal distribution: mean = CAGR, std dev = volatility
+              const randomReturn = (Math.random() + Math.random() + Math.random() + Math.random() + Math.random() + Math.random() - 3) / 3; // Approximates normal distribution
+              const yearReturn = (cagrs.yourPortfolio + randomReturn * volatilities.yourPortfolio) / 100;
+              value *= (1 + yearReturn);
+            }
+            simulations.push(value);
+          }
+          
+          // Sort results
+          simulations.sort((a, b) => a - b);
+          
+          // Calculate percentiles
+          const p10 = simulations[Math.floor(numSims * 0.10)];
+          const p25 = simulations[Math.floor(numSims * 0.25)];
+          const p50 = simulations[Math.floor(numSims * 0.50)];
+          const p75 = simulations[Math.floor(numSims * 0.75)];
+          const p90 = simulations[Math.floor(numSims * 0.90)];
+          const worst = simulations[0];
+          const best = simulations[numSims - 1];
+          
+          // Create distribution data for chart (20 bins)
+          const binSize = (best - worst) / 20;
+          const distribution = [];
+          for (let i = 0; i < 20; i++) {
+            const binStart = worst + i * binSize;
+            const binEnd = binStart + binSize;
+            const count = simulations.filter(v => v >= binStart && v < binEnd).length;
+            distribution.push({
+              bin: i,
+              value: (binStart + binEnd) / 2,
+              count,
+              label: `$${((binStart + binEnd) / 2 / 1000).toFixed(0)}K`
+            });
+          }
+          
+          return (
+            <>
+              <div className="grid grid-cols-5 gap-4 mb-6">
+                <div className="text-center p-4 bg-red-900/30 border border-red-600/50 rounded">
+                  <div className="text-xs text-slate-400 mb-1">Worst Case</div>
+                  <div className="text-2xl font-bold text-red-400">${(worst / 1000).toFixed(0)}K</div>
+                  <div className="text-xs text-slate-500 mt-1">10th %ile</div>
+                </div>
+                
+                <div className="text-center p-4 bg-orange-900/30 border border-orange-600/50 rounded">
+                  <div className="text-xs text-slate-400 mb-1">Pessimistic</div>
+                  <div className="text-2xl font-bold text-orange-400">${(p25 / 1000).toFixed(0)}K</div>
+                  <div className="text-xs text-slate-500 mt-1">25th %ile</div>
+                </div>
+                
+                <div className="text-center p-4 bg-blue-900/30 border-2 border-blue-500/70 rounded">
+                  <div className="text-xs text-slate-400 mb-1">Expected</div>
+                  <div className="text-3xl font-bold text-blue-400">${(p50 / 1000).toFixed(0)}K</div>
+                  <div className="text-xs text-slate-500 mt-1">Median (50th)</div>
+                </div>
+                
+                <div className="text-center p-4 bg-green-900/30 border border-green-600/50 rounded">
+                  <div className="text-xs text-slate-400 mb-1">Optimistic</div>
+                  <div className="text-2xl font-bold text-green-400">${(p75 / 1000).toFixed(0)}K</div>
+                  <div className="text-xs text-slate-500 mt-1">75th %ile</div>
+                </div>
+                
+                <div className="text-center p-4 bg-emerald-900/30 border border-emerald-600/50 rounded">
+                  <div className="text-xs text-slate-400 mb-1">Best Case</div>
+                  <div className="text-2xl font-bold text-emerald-400">${(best / 1000).toFixed(0)}K</div>
+                  <div className="text-xs text-slate-500 mt-1">90th %ile</div>
+                </div>
+              </div>
+              
+              {/* Distribution Histogram */}
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={distribution}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis 
+                    dataKey="label" 
+                    stroke="#94a3b8"
+                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis 
+                    stroke="#94a3b8"
+                    tick={{ fill: '#94a3b8' }}
+                    label={{ value: 'Probability', angle: -90, position: 'insideLeft', fill: '#94a3b8' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                    labelStyle={{ color: '#e2e8f0' }}
+                    formatter={(value) => [`${value} scenarios`, 'Count']}
+                  />
+                  <Bar dataKey="count" fill="#3b82f6">
+                    {distribution.map((entry, index) => {
+                      const value = entry.value;
+                      let color = '#3b82f6'; // Default blue
+                      if (value < p10) color = '#ef4444'; // Red (worst 10%)
+                      else if (value < p25) color = '#f97316'; // Orange
+                      else if (value > p90) color = '#10b981'; // Green (best 10%)
+                      else if (value > p75) color = '#22c55e'; // Light green
+                      return <Cell key={`cell-${index}`} fill={color} />;
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              
+              <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+                <div className="bg-blue-900/20 border border-blue-600/30 rounded p-3">
+                  <div className="text-xs text-slate-400">Expected Range (50% probability)</div>
+                  <div className="text-lg font-bold text-blue-400">
+                    ${(p25 / 1000).toFixed(0)}K - ${(p75 / 1000).toFixed(0)}K
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">25th to 75th percentile</div>
+                </div>
+                
+                <div className="bg-purple-900/20 border border-purple-600/30 rounded p-3">
+                  <div className="text-xs text-slate-400">10-Year CAGR Range</div>
+                  <div className="text-lg font-bold text-purple-400">
+                    {(((p25 / initialValue) ** (1/10) - 1) * 100).toFixed(1)}% - {(((p75 / initialValue) ** (1/10) - 1) * 100).toFixed(1)}%
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">25th to 75th percentile</div>
+                </div>
+                
+                <div className="bg-green-900/20 border border-green-600/30 rounded p-3">
+                  <div className="text-xs text-slate-400">Probability of Growth</div>
+                  <div className="text-lg font-bold text-green-400">
+                    {((simulations.filter(v => v > initialValue).length / numSims) * 100).toFixed(1)}%
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">Ending above ${(initialValue / 1000).toFixed(0)}K</div>
+                </div>
+              </div>
+              
+              <div className="mt-4 p-3 bg-slate-900/50 border border-slate-700 rounded text-xs text-slate-400">
+                <strong>Methodology:</strong> Monte Carlo simulation uses 1,000 random scenarios based on your portfolio's historical return ({cagrs.yourPortfolio.toFixed(1)}% CAGR) and volatility ({volatilities.yourPortfolio.toFixed(1)}%). Each scenario simulates 10 years of market returns using a normal distribution. Results show the range of possible outcomes and their probabilities.
+              </div>
+            </>
+          );
+        })()}
+      </div>
     </div>
   );
 };

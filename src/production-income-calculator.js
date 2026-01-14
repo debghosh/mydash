@@ -158,34 +158,34 @@ const calculateProductionIncomeProjection = ({
     // Total income tax
     const totalIncomeTax = federalTaxOnOrdinary + qualifiedDivTax + stateTax;
     
-    // === STEP 4: After-Tax Income (Bug #3 fix - dividend offset) ===
-    const afterTaxIncome = (totalDividends + rmd + socialSecurity) - totalIncomeTax;
+    // === STEP 3A: TAX-ON-TAX for ROTH CONVERSION (NEW - Bug #2 fix) ===
+    // We need to pay totalIncomeTax. If we sell stocks to pay it, that creates additional tax!
     
-    // === STEP 5: Cash Shortfall ===
-    const cashNeeded = livingExpenses;
-    const shortfall = Math.max(0, cashNeeded - afterTaxIncome);
+    let conversionTaxStocksSold = 0;
+    let conversionTaxCapGains = 0;
+    let conversionTaxOnTax = 0;
     
-    // === STEP 6: TAX-ON-TAX Calculation (Bug #4 fix - iterative) ===
-    let stocksSold = 0;
-    let capitalGains = 0;
-    let capGainsTax = 0;
+    // Check if we need to sell stocks to pay the conversion tax
+    // Available cash = dividends + RMD + SS (before tax)
+    const availableCashBeforeTax = totalDividends + rmd + socialSecurity;
+    const taxPaymentNeeded = totalIncomeTax;
     
-    if (shortfall > 0 && taxableBal > 0) {
-      // Iterative calculation to convergence (max 10 iterations)
-      let totalCashNeeded = shortfall;
+    // If tax exceeds available cash, we need to sell stocks
+    if (taxPaymentNeeded > availableCashBeforeTax && taxableBal > 0) {
+      // We need to sell stocks to pay: (tax - availableCash)
+      const taxShortfall = taxPaymentNeeded - availableCashBeforeTax;
+      
+      // Iterative calculation for tax-on-tax
+      let totalSaleNeeded = taxShortfall;
       
       for (let iteration = 0; iteration < 10; iteration++) {
-        // Current cost basis percentage
         const currentCostBasisPct = totalCostBasis / taxableBal;
         
-        // Estimate sale amount
-        const estimatedSale = totalCashNeeded;
+        // Calculate gains from this sale
+        const basisOfSale = totalSaleNeeded * currentCostBasisPct;
+        const gainsFromSale = totalSaleNeeded - basisOfSale;
         
-        // Calculate gains
-        const basisOfSale = estimatedSale * currentCostBasisPct;
-        const gainsFromSale = estimatedSale - basisOfSale;
-        
-        // Tax on gains
+        // Tax on these gains
         const saleIncome = ordinaryIncome + gainsFromSale;
         const saleLTCGRate = getLTCGRate(saleIncome);
         const saleNIITRate = getNIITRate(saleIncome);
@@ -193,40 +193,113 @@ const calculateProductionIncomeProjection = ({
         const stateCapGainsTax = gainsFromSale * (stateTaxRate / 100);
         const totalCapGainsTax = federalCapGainsTax + stateCapGainsTax;
         
-        // Net proceeds
-        const netProceeds = estimatedSale - totalCapGainsTax;
+        // Net proceeds after tax
+        const netProceeds = totalSaleNeeded - totalCapGainsTax;
         
-        // Check convergence (within $10)
-        if (Math.abs(netProceeds - shortfall) < 10) {
-          stocksSold = estimatedSale;
-          capitalGains = gainsFromSale;
-          capGainsTax = totalCapGainsTax;
+        // Check convergence
+        if (Math.abs(netProceeds - taxShortfall) < 10) {
+          conversionTaxStocksSold = totalSaleNeeded;
+          conversionTaxCapGains = gainsFromSale;
+          conversionTaxOnTax = totalCapGainsTax;
           break;
         }
         
         // Adjust for next iteration
-        totalCashNeeded = shortfall + totalCapGainsTax;
+        totalSaleNeeded = taxShortfall + totalCapGainsTax;
         
         // Safety: don't sell more than we have
-        if (totalCashNeeded > taxableBal) {
-          stocksSold = taxableBal;
-          const finalBasis = stocksSold * currentCostBasisPct;
-          capitalGains = stocksSold - finalBasis;
-          capGainsTax = capitalGains * (saleLTCGRate + saleNIITRate + stateTaxRate / 100);
+        if (totalSaleNeeded > taxableBal) {
+          conversionTaxStocksSold = taxableBal;
+          const finalBasis = conversionTaxStocksSold * currentCostBasisPct;
+          conversionTaxCapGains = conversionTaxStocksSold - finalBasis;
+          conversionTaxOnTax = conversionTaxCapGains * (saleLTCGRate + saleNIITRate + stateTaxRate / 100);
           break;
         }
       }
     }
     
+    // Total tax including tax-on-tax for conversion
+    const totalTaxIncludingConversionTaxOnTax = totalIncomeTax + conversionTaxOnTax;
+    
+    // === STEP 4: After-Tax Income (Bug #3 fix - dividend offset) ===
+    const afterTaxIncome = (totalDividends + rmd + socialSecurity) - totalTaxIncludingConversionTaxOnTax;
+    
+    // === STEP 5: Cash Shortfall ===
+    const cashNeeded = livingExpenses;
+    const shortfall = Math.max(0, cashNeeded - afterTaxIncome);
+    
+    // === STEP 6: TAX-ON-TAX Calculation for LIVING EXPENSES (Bug #4 fix - iterative) ===
+    let livingExpenseStocksSold = 0;
+    let livingExpenseCapGains = 0;
+    let livingExpenseCapGainsTax = 0;
+    
+    if (shortfall > 0 && taxableBal > 0) {
+      // Adjust taxable balance for stocks already sold for conversion tax
+      const remainingTaxableBal = taxableBal - conversionTaxStocksSold;
+      
+      if (remainingTaxableBal > 0) {
+        // Iterative calculation to convergence (max 10 iterations)
+        let totalCashNeeded = shortfall;
+        
+        for (let iteration = 0; iteration < 10; iteration++) {
+          // Current cost basis percentage (after conversion tax sale)
+          const currentCostBasisPct = totalCostBasis / taxableBal;
+          
+          // Estimate sale amount
+          const estimatedSale = totalCashNeeded;
+          
+          // Calculate gains
+          const basisOfSale = estimatedSale * currentCostBasisPct;
+          const gainsFromSale = estimatedSale - basisOfSale;
+          
+          // Tax on gains
+          const saleIncome = ordinaryIncome + gainsFromSale;
+          const saleLTCGRate = getLTCGRate(saleIncome);
+          const saleNIITRate = getNIITRate(saleIncome);
+          const federalCapGainsTax = gainsFromSale * (saleLTCGRate + saleNIITRate);
+          const stateCapGainsTax = gainsFromSale * (stateTaxRate / 100);
+          const totalCapGainsTax = federalCapGainsTax + stateCapGainsTax;
+          
+          // Net proceeds
+          const netProceeds = estimatedSale - totalCapGainsTax;
+          
+          // Check convergence (within $10)
+          if (Math.abs(netProceeds - shortfall) < 10) {
+            livingExpenseStocksSold = estimatedSale;
+            livingExpenseCapGains = gainsFromSale;
+            livingExpenseCapGainsTax = totalCapGainsTax;
+            break;
+          }
+          
+          // Adjust for next iteration
+          totalCashNeeded = shortfall + totalCapGainsTax;
+          
+          // Safety: don't sell more than we have (accounting for conversion tax sales)
+          if (totalCashNeeded > remainingTaxableBal) {
+            livingExpenseStocksSold = remainingTaxableBal;
+            const finalBasis = livingExpenseStocksSold * currentCostBasisPct;
+            livingExpenseCapGains = livingExpenseStocksSold - finalBasis;
+            livingExpenseCapGainsTax = livingExpenseCapGains * (saleLTCGRate + saleNIITRate + stateTaxRate / 100);
+            break;
+          }
+        }
+      }
+    }
+    
+    // Total stocks sold = conversion tax + living expenses
+    const totalStocksSold = conversionTaxStocksSold + livingExpenseStocksSold;
+    const totalCapitalGains = conversionTaxCapGains + livingExpenseCapGains;
+    const totalCapGainsTaxes = conversionTaxOnTax + livingExpenseCapGainsTax;
+    
     // === STEP 7: Update Account Balances ===
     
-    // Reduce taxable account
-    taxableBal -= stocksSold;
+    // Reduce taxable account (both conversion tax sales AND living expense sales)
+    taxableBal -= totalStocksSold;
     
     // Reduce cost basis proportionally (Bug #5 fix)
-    if (stocksSold > 0 && taxableBal > 0) {
-      const costBasisPct = totalCostBasis / (taxableBal + stocksSold);
-      const basisRemoved = stocksSold * costBasisPct;
+    if (totalStocksSold > 0 && taxableBal > 0) {
+      const costBasisPct = totalCostBasis / (taxableBal + totalStocksSold);
+      const basisRemoved = totalStocksSold * costBasisPct;
       totalCostBasis -= basisRemoved;
     }
     
@@ -248,7 +321,7 @@ const calculateProductionIncomeProjection = ({
     rothIRABal *= (1 + growthRate);
     
     // === STEP 9: Calculate Total Taxes ===
-    const totalTaxes = totalIncomeTax + capGainsTax;
+    const totalTaxes = totalIncomeTax + totalCapGainsTaxes;
     const conservativeTaxes = totalTaxes * conservativeBuffer;
     
     // === STEP 10: Calculate derived values ===
@@ -279,10 +352,23 @@ const calculateProductionIncomeProjection = ({
       stateTax: Math.round(stateTax),
       totalIncomeTax: Math.round(totalIncomeTax),
       
-      // Stock sales
-      stocksSold: Math.round(stocksSold),
-      capitalGains: Math.round(capitalGains),
-      capGainsTax: Math.round(capGainsTax),
+      // Stock sales - SEPARATED by purpose (NEW - Bug #2 fix)
+      conversionTaxStocksSold: Math.round(conversionTaxStocksSold),
+      conversionTaxCapGains: Math.round(conversionTaxCapGains),
+      conversionTaxOnTax: Math.round(conversionTaxOnTax),
+      
+      livingExpenseStocksSold: Math.round(livingExpenseStocksSold),
+      livingExpenseCapGains: Math.round(livingExpenseCapGains),
+      livingExpenseCapGainsTax: Math.round(livingExpenseCapGainsTax),
+      
+      totalStocksSold: Math.round(totalStocksSold),
+      totalCapitalGains: Math.round(totalCapitalGains),
+      totalCapGainsTaxes: Math.round(totalCapGainsTaxes),
+      
+      // Legacy fields for backward compatibility
+      stocksSold: Math.round(totalStocksSold),
+      capitalGains: Math.round(totalCapitalGains),
+      capGainsTax: Math.round(totalCapGainsTaxes),
       
       // Total taxes
       totalTaxes: Math.round(totalTaxes),

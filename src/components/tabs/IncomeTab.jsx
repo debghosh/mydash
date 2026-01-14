@@ -171,7 +171,16 @@ const IncomeTab = ({
 
     const totalConversions = lifetimeProjection.reduce((sum, p) => sum + p.conversionAmount, 0);
     const totalConversionTaxes = lifetimeProjection.reduce((sum, p) => sum + p.federalTax, 0);
-    const totalCapGainsTaxes = lifetimeProjection.reduce((sum, p) => sum + p.capGainsTax, 0);
+    
+    // NEW: Separated tax-on-tax tracking (Bug #2 fix)
+    const conversionTaxStocksSold = lifetimeProjection.reduce((sum, p) => sum + (p.conversionTaxStocksSold || 0), 0);
+    const conversionTaxOnTax = lifetimeProjection.reduce((sum, p) => sum + (p.conversionTaxOnTax || 0), 0);
+    
+    const livingExpenseStocksSold = lifetimeProjection.reduce((sum, p) => sum + (p.livingExpenseStocksSold || 0), 0);
+    const livingExpenseCapGainsTax = lifetimeProjection.reduce((sum, p) => sum + (p.livingExpenseCapGainsTax || 0), 0);
+    
+    // Legacy totals (use new fields)
+    const totalCapGainsTaxes = conversionTaxOnTax + livingExpenseCapGainsTax;
     const totalLifetimeTaxes = lifetimeProjection.reduce((sum, p) => sum + p.totalTaxes, 0);
     const totalStocksSold = lifetimeProjection.reduce((sum, p) => sum + p.stocksSold, 0);
     const totalCapitalGains = lifetimeProjection.reduce((sum, p) => sum + p.capitalGains, 0);
@@ -181,6 +190,14 @@ const IncomeTab = ({
     return {
       totalConversions,
       totalConversionTaxes,
+      
+      // NEW: Separated tracking
+      conversionTaxStocksSold,
+      conversionTaxOnTax,
+      livingExpenseStocksSold,
+      livingExpenseCapGainsTax,
+      
+      // Legacy totals
       totalCapGainsTaxes,
       totalLifetimeTaxes,
       totalStocksSold,
@@ -495,27 +512,57 @@ const IncomeTab = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-gradient-to-br from-amber-900/40 to-amber-800/40 border border-amber-500/30 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-amber-300 mb-3">💡 Tax-on-Tax Impact</h3>
-              <div className="space-y-2 text-sm text-slate-300">
-                <div className="flex justify-between">
-                  <span>Total stocks sold (ages 60-90):</span>
-                  <span className="font-bold text-orange-400">
-                    {formatCurrency(lifetimeTotals.totalStocksSold / 1000000)}M
-                  </span>
+              <div className="space-y-3 text-sm text-slate-300">
+                {/* ROTH CONVERSION TAX-ON-TAX */}
+                <div className="bg-slate-800/50 rounded p-3">
+                  <h4 className="text-xs font-semibold text-purple-400 mb-2">Roth Conversion Taxes</h4>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span>Stocks sold to pay conversion taxes:</span>
+                      <span className="font-bold text-purple-300">
+                        {formatCurrency(lifetimeTotals.conversionTaxStocksSold / 1000000)}M
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs border-t border-purple-600/30 pt-1">
+                      <span>Cap gains tax (tax-on-tax):</span>
+                      <span className="font-bold text-red-400">
+                        ${(lifetimeTotals.conversionTaxOnTax / 1000).toFixed(0)}K
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span>Capital gains realized:</span>
-                  <span className="font-bold text-orange-300">
-                    {formatCurrency(lifetimeTotals.totalCapitalGains / 1000000)}M
-                  </span>
+                
+                {/* LIVING EXPENSE TAX-ON-TAX */}
+                <div className="bg-slate-800/50 rounded p-3">
+                  <h4 className="text-xs font-semibold text-blue-400 mb-2">Living Expenses</h4>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span>Stocks sold for expenses:</span>
+                      <span className="font-bold text-blue-300">
+                        {formatCurrency(lifetimeTotals.livingExpenseStocksSold / 1000000)}M
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs border-t border-blue-600/30 pt-1">
+                      <span>Cap gains tax:</span>
+                      <span className="font-bold text-red-400">
+                        ${(lifetimeTotals.livingExpenseCapGainsTax / 1000).toFixed(0)}K
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between border-t border-amber-600/30 pt-2">
-                  <span>Total cap gains tax (tax-on-tax):</span>
-                  <span className="font-bold text-red-400">
-                    ${(lifetimeTotals.totalCapGainsTaxes / 1000).toFixed(0)}K
-                  </span>
+                
+                {/* TOTAL */}
+                <div className="border-t-2 border-amber-600/50 pt-2">
+                  <div className="flex justify-between font-bold">
+                    <span>TOTAL Hidden Taxes:</span>
+                    <span className="text-red-400 text-lg">
+                      ${(lifetimeTotals.totalCapGainsTaxes / 1000).toFixed(0)}K
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs italic text-amber-200 mt-3">
-                  This is the "hidden tax" - capital gains triggered when selling stocks to pay Roth conversion taxes and living expenses.
+                
+                <p className="text-xs italic text-amber-200 mt-3 border-t border-amber-600/30 pt-2">
+                  This is the "tax-on-tax" - capital gains triggered when selling stocks to pay both Roth conversion taxes ({formatCurrency(lifetimeTotals.conversionTaxOnTax / 1000)}K) and living expenses ({formatCurrency(lifetimeTotals.livingExpenseCapGainsTax / 1000)}K).
                 </p>
               </div>
             </div>
