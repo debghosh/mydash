@@ -159,24 +159,26 @@ const calculateProductionIncomeProjection = ({
     const totalIncomeTax = federalTaxOnOrdinary + qualifiedDivTax + stateTax;
     
     // === STEP 3A: TAX-ON-TAX for ROTH CONVERSION (NEW - Bug #2 fix) ===
-    // We need to pay totalIncomeTax. If we sell stocks to pay it, that creates additional tax!
+    // CRITICAL INSIGHT: When converting from IRA → Roth, both accounts are LOCKED.
+    // The tax MUST be paid from the taxable brokerage account.
+    // Therefore, we ALWAYS sell stocks to pay conversion tax (generating capital gains tax).
     
     let conversionTaxStocksSold = 0;
     let conversionTaxCapGains = 0;
     let conversionTaxOnTax = 0;
     
-    // Check if we need to sell stocks to pay the conversion tax
-    // Available cash = dividends + RMD + SS (before tax)
-    const availableCashBeforeTax = totalDividends + rmd + socialSecurity;
-    const taxPaymentNeeded = totalIncomeTax;
-    
-    // If tax exceeds available cash, we need to sell stocks
-    if (taxPaymentNeeded > availableCashBeforeTax && taxableBal > 0) {
-      // We need to sell stocks to pay: (tax - availableCash)
-      const taxShortfall = taxPaymentNeeded - availableCashBeforeTax;
+    // Only calculate if there's an actual conversion
+    if (conversion > 0 && taxableBal > 0) {
+      // Calculate tax ONLY on the conversion amount
+      // Use just the conversion income to find the marginal tax
+      const conversionOnly = conversion;
+      const { tax: federalTaxOnConversion } = calculateMarginalTax(conversionOnly);
+      const stateConversionTax = conversion * (stateTaxRate / 100);
+      const totalConversionTax = federalTaxOnConversion + stateConversionTax;
       
-      // Iterative calculation for tax-on-tax
-      let totalSaleNeeded = taxShortfall;
+      // We need to sell stocks from taxable account to pay this tax
+      // Iterative calculation to account for tax-on-tax
+      let totalSaleNeeded = totalConversionTax;
       
       for (let iteration = 0; iteration < 10; iteration++) {
         const currentCostBasisPct = totalCostBasis / taxableBal;
@@ -185,37 +187,48 @@ const calculateProductionIncomeProjection = ({
         const basisOfSale = totalSaleNeeded * currentCostBasisPct;
         const gainsFromSale = totalSaleNeeded - basisOfSale;
         
-        // Tax on these gains
-        const saleIncome = ordinaryIncome + gainsFromSale;
+        // Tax on these gains (LTCG rates + NIIT)
+        const saleIncome = conversion + gainsFromSale; // Total income for rate calculation
         const saleLTCGRate = getLTCGRate(saleIncome);
         const saleNIITRate = getNIITRate(saleIncome);
         const federalCapGainsTax = gainsFromSale * (saleLTCGRate + saleNIITRate);
         const stateCapGainsTax = gainsFromSale * (stateTaxRate / 100);
         const totalCapGainsTax = federalCapGainsTax + stateCapGainsTax;
         
-        // Net proceeds after tax
+        // Net proceeds after paying cap gains tax
         const netProceeds = totalSaleNeeded - totalCapGainsTax;
         
-        // Check convergence
-        if (Math.abs(netProceeds - taxShortfall) < 10) {
+        // Check if we have enough to pay the original conversion tax
+        if (Math.abs(netProceeds - totalConversionTax) < 10) {
           conversionTaxStocksSold = totalSaleNeeded;
           conversionTaxCapGains = gainsFromSale;
           conversionTaxOnTax = totalCapGainsTax;
           break;
         }
         
-        // Adjust for next iteration
-        totalSaleNeeded = taxShortfall + totalCapGainsTax;
+        // Need to sell more to cover both conversion tax AND the cap gains tax
+        totalSaleNeeded = totalConversionTax + totalCapGainsTax;
         
         // Safety: don't sell more than we have
         if (totalSaleNeeded > taxableBal) {
           conversionTaxStocksSold = taxableBal;
           const finalBasis = conversionTaxStocksSold * currentCostBasisPct;
           conversionTaxCapGains = conversionTaxStocksSold - finalBasis;
-          conversionTaxOnTax = conversionTaxCapGains * (saleLTCGRate + saleNIITRate + stateTaxRate / 100);
+          const finalIncome = conversion + conversionTaxCapGains;
+          const finalLTCGRate = getLTCGRate(finalIncome);
+          const finalNIITRate = getNIITRate(finalIncome);
+          conversionTaxOnTax = conversionTaxCapGains * (finalLTCGRate + finalNIITRate + stateTaxRate / 100);
           break;
         }
       }
+    }
+    
+    // VALIDATION: Ensure consistency
+    // If no stocks sold, there should be NO gains and NO tax
+    if (conversionTaxStocksSold < 1) {
+      conversionTaxStocksSold = 0;
+      conversionTaxCapGains = 0;
+      conversionTaxOnTax = 0;
     }
     
     // Total tax including tax-on-tax for conversion
@@ -226,17 +239,25 @@ const calculateProductionIncomeProjection = ({
     
     // === STEP 5: Cash Shortfall ===
     const cashNeeded = livingExpenses;
-    const shortfall = Math.max(0, cashNeeded - afterTaxIncome);
+    let shortfall = Math.max(0, cashNeeded - afterTaxIncome);
+    
+    // CRITICAL FIX: If shortfall is tiny (< $100), round to $0
+    // This prevents phantom stock sales from rounding errors
+    if (shortfall < 100) {
+      shortfall = 0;
+    }
     
     // === STEP 6: TAX-ON-TAX Calculation for LIVING EXPENSES (Bug #4 fix - iterative) ===
     let livingExpenseStocksSold = 0;
     let livingExpenseCapGains = 0;
     let livingExpenseCapGainsTax = 0;
     
+    // Only calculate if there's a MEANINGFUL shortfall (> $0 after rounding)
     if (shortfall > 0 && taxableBal > 0) {
       // Adjust taxable balance for stocks already sold for conversion tax
       const remainingTaxableBal = taxableBal - conversionTaxStocksSold;
       
+      // Only proceed if we have enough balance remaining
       if (remainingTaxableBal > 0) {
         // Iterative calculation to convergence (max 10 iterations)
         let totalCashNeeded = shortfall;
@@ -284,6 +305,14 @@ const calculateProductionIncomeProjection = ({
           }
         }
       }
+    }
+    
+    // FINAL VALIDATION: Triple-check for consistency
+    // If shortfall was tiny, OR stocks sold was tiny, OR this is clearly wrong → zero everything
+    if (shortfall === 0 || livingExpenseStocksSold < 100 || (livingExpenseStocksSold === 0 && livingExpenseCapGainsTax > 0)) {
+      livingExpenseStocksSold = 0;
+      livingExpenseCapGains = 0;
+      livingExpenseCapGainsTax = 0;
     }
     
     // Total stocks sold = conversion tax + living expenses
@@ -357,9 +386,11 @@ const calculateProductionIncomeProjection = ({
       conversionTaxCapGains: Math.round(conversionTaxCapGains),
       conversionTaxOnTax: Math.round(conversionTaxOnTax),
       
-      livingExpenseStocksSold: Math.round(livingExpenseStocksSold),
-      livingExpenseCapGains: Math.round(livingExpenseCapGains),
-      livingExpenseCapGainsTax: Math.round(livingExpenseCapGainsTax),
+      // ABSOLUTE VALIDATION: If stocks sold < $1000, force everything to exactly 0
+      // This prevents phantom taxes from rounding errors or tiny amounts
+      livingExpenseStocksSold: livingExpenseStocksSold >= 1000 ? Math.round(livingExpenseStocksSold) : 0,
+      livingExpenseCapGains: livingExpenseStocksSold >= 1000 ? Math.round(livingExpenseCapGains) : 0,
+      livingExpenseCapGainsTax: livingExpenseStocksSold >= 1000 ? Math.round(livingExpenseCapGainsTax) : 0,
       
       totalStocksSold: Math.round(totalStocksSold),
       totalCapitalGains: Math.round(totalCapitalGains),

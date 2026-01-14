@@ -2102,11 +2102,10 @@ const PortfolioStrategyDashboard = () => {
           {/* TAX OPTIMIZATION TAB - COMPONENTIZED */}
           {activeTab === 'tax-optimization' && (
             <TaxOptTab
-              allocation={currentAllocation}
               taxableAmount={taxableAmount}
               iraAmount={iraAmount}
-              rothAmount={rothAmount}
-              isValid={portfolioIsValid}
+              currentAge={60}
+              stateTaxRate={stateTaxRate}
             />
           )}
 

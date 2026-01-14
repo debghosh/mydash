@@ -87,54 +87,34 @@ const PortfolioBuilder = ({
       <div className="mb-6">
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
-            <input
-              type="text"
-              value={portfolioName}
-              onChange={(e) => updateMetadata({ name: e.target.value })}
-              className="text-2xl font-bold border-none outline-none focus:ring-2 focus:ring-blue-500 px-2 py-1 rounded"
-              placeholder="Portfolio Name"
-            />
-            <input
-              type="text"
-              value={portfolioDescription}
-              onChange={(e) => updateMetadata({ description: e.target.value })}
-              className="text-sm text-gray-600 border-none outline-none focus:ring-2 focus:ring-blue-500 px-2 py-1 rounded w-full mt-1"
-              placeholder="Add a description..."
-            />
-            
-            {/* Tags */}
-            <div className="flex flex-wrap gap-2 mt-3">
-              {portfolioTags.map(tag => (
-                <span 
-                  key={tag}
-                  className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
-                >
-                  {tag}
-                  <button
-                    onClick={() => removeTag(tag)}
-                    className="text-blue-600 hover:text-blue-800 ml-1"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-              <button
-                onClick={() => {
-                  const tag = prompt('Enter tag:');
-                  if (tag) addTag(tag);
-                }}
-                className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full hover:bg-gray-200"
-              >
-                + Add Tag
-              </button>
+            <div className="text-2xl font-bold text-slate-100 mb-2">
+              {portfolioName || 'My Portfolio'}
+            </div>
+            <div className="text-sm text-slate-400 mb-3">
+              {portfolioDescription || 'Build your custom portfolio allocation'}
             </div>
             
-            {/* Template Badge */}
-            {portfolioTemplateId && (
-              <div className="mt-2 text-xs text-gray-500">
-                Based on template: <span className="font-medium">{portfolioTemplateId}</span>
-              </div>
-            )}
+            {/* Status Indicator */}
+            <div className="flex items-center gap-3">
+              {isValid ? (
+                <div className="flex items-center gap-2 px-3 py-1 bg-green-900/30 border border-green-600/50 rounded text-sm">
+                  <span className="text-green-400">✓ Portfolio Complete</span>
+                  <span className="text-slate-400">({Object.keys(portfolio).length} ETFs, {totalAllocation.toFixed(1)}%)</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-1 bg-yellow-900/30 border border-yellow-600/50 rounded text-sm">
+                  <span className="text-yellow-400">⚠ Incomplete</span>
+                  <span className="text-slate-400">{totalAllocation.toFixed(1)}% allocated (need 100%)</span>
+                </div>
+              )}
+              
+              {/* Template Badge */}
+              {portfolioTemplateId && (
+                <div className="text-xs text-slate-500 px-2 py-1 bg-slate-800 rounded">
+                  From template: <span className="font-medium text-blue-400">{portfolioTemplateId}</span>
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="flex gap-2">
@@ -144,6 +124,20 @@ const PortfolioBuilder = ({
             >
               📋 Load Template
             </button>
+            
+            {/* DONE BUTTON - Apply portfolio to all tabs */}
+            {isValid && onPortfolioChange && (
+              <button
+                onClick={() => {
+                  // Portfolio is already being applied via useEffect in hook
+                  // This button just gives visual feedback
+                  alert('✅ Portfolio applied! All dashboard tabs will use this allocation.');
+                }}
+                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-bold shadow-lg"
+              >
+                ✓ DONE - Apply Portfolio
+              </button>
+            )}
           </div>
         </div>
         
