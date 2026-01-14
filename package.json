@@ -1,6 +1,7 @@
 {
   "name": "portfolio-strategy-dashboard",
   "version": "1.0.0",
+  "type": "module", 
   "description": "Interactive Portfolio Investment Strategy Dashboard",
   "private": true,
   "scripts": {

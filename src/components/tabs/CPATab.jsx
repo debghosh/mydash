@@ -361,7 +361,7 @@ const CPATab = ({
               <li>• Charitable contributions</li>
               <li>• Property taxes (SALT cap)</li>
               <li>• Mortgage interest</li>
-              <li>• Medical expenses (>7.5% AGI)</li>
+              <li>• Medical expenses (&gt;7.5% AGI)</li>
             </ul>
           </div>
           <div>
